@@ -66,7 +66,15 @@
  .mpesa-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px; }
  .mpesa-box h3 { color: #166534; font-size: 24px; margin-bottom: 4px; }
  .mpesa-box p { color: #15803d; font-size: 14px; }
- </style>
+ 
+/* TOAST NOTIFICATIONS */
+#toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+.toast { background: white; color: #0f172a; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-left: 4px solid #3b82f6; font-weight: 600; font-size: 14px; animation: slideIn 0.3s ease-out; max-width: 350px; transition: opacity 0.3s; }
+.toast.error { border-left-color: #ef4444; }
+.toast.success { border-left-color: #10b981; }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+</style>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
@@ -186,6 +194,30 @@
     </div>
 
   <script>
+
+// TOAST NOTIFICATION SYSTEM
+function showToast(message, type = 'info') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    
+    // Auto-detect error/success based on text if type is info
+    if (type === 'info') {
+        const lowerMsg = message.toLowerCase();
+        if (lowerMsg.includes('error') || lowerMsg.includes('invalid') || lowerMsg.includes('denied') || lowerMsg.includes('unable') || lowerMsg.includes('please enter') || lowerMsg.includes('please provide') || lowerMsg.includes('alert')) type = 'error';
+        if (lowerMsg.includes('success') || lowerMsg.includes('closed') || lowerMsg.includes('received')) type = 'success';
+    }
+    
+    toast.className = `toast ${type}`;
+    toast.innerText = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3500);
+}
+
  const SUPABASE_URL = "https://yjgskbdtnyzsmuzvnrsz.supabase.co";
  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqZ3NrYmR0bnl6c211enZucnN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NDQ5NzEsImV4cCI6MjEwNjUyMDk3MX0.elz2qyCCXBRFTCdbzqYqoiltkkmBALKrQhAv-I4SC7Q";
  const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -353,7 +385,7 @@ let cart = [];
 function proceedToPayment() {
  const name = document.getElementById('custName').value;
  const phone = document.getElementById('custPhone').value;
- if (!name || !phone) return alert("Please fill name and phone.");
+ if (!name || !phone) return showToast("Please fill name and phone.");
  closeModals();
  const total = cart.reduce((sum, item) => sum + item.price_cents, 0) / 100;
  document.getElementById('mpesaTotalAmount').innerText = 'KES ' + total.toLocaleString();
@@ -389,7 +421,7 @@ function proceedToPayment() {
    const mpesa = document.getElementById('mpesaCode').value.trim().toUpperCase();
    const mpesaRegex = /^[A-Z0-9]{10}$/;
    if (!mpesaRegex.test(mpesa)) {
-       alert("Invalid M-Pesa Code. It must be exactly 10 alphanumeric characters.");
+       showToast("Invalid M-Pesa Code. It must be exactly 10 alphanumeric characters.");
        if (btn) { btn.disabled = false; btn.textContent = "Complete Order"; }
        return;
    }
@@ -419,13 +451,13 @@ function proceedToPayment() {
  }]);
  
  if (error) {
- alert("Error: " + error.message);
+ showToast("Error: " + error.message);
  btn.disabled = false;
  btn.textContent = "Confirm & Place Order";
  return;
  }
  
- alert("Order Received! Once our team verifies your M-Pesa payment, it will be dispatched to the warehouse.");
+ showToast("Order Received! Once our team verifies your M-Pesa payment, it will be dispatched to the warehouse.");
  cart = []; document.getElementById('cartBadge').innerText = '0';
  
  // Reset Form Fields

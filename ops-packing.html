@@ -29,7 +29,15 @@
         .check-item { display:flex; align-items:center; gap:10px; padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:8px; }
         .batch-bar { background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
         .dispatch-list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; }
-    </style>
+    
+/* TOAST NOTIFICATIONS */
+#toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+.toast { background: white; color: #0f172a; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-left: 4px solid #3b82f6; font-weight: 600; font-size: 14px; animation: slideIn 0.3s ease-out; max-width: 350px; transition: opacity 0.3s; }
+.toast.error { border-left-color: #ef4444; }
+.toast.success { border-left-color: #10b981; }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+</style>
 </head>
 <body>
 
@@ -94,6 +102,83 @@
     </div>
 
     <script>
+
+// CUSTOM MODAL SYSTEM
+window.customPrompt = function(title, message, placeholder = '') {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; display:flex; align-items:center; justify-content:center;';
+        const modal = document.createElement('div');
+        modal.style.cssText = 'background:white; padding:20px; border-radius:8px; width:90%; max-width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
+        
+        modal.innerHTML = `
+            <h3 style="margin-bottom:10px;">${title}</h3>
+            <p style="font-size:14px; color:#64748b; margin-bottom:15px;">${message}</p>
+            <input type="text" id="cpInput" placeholder="${placeholder}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:4px; margin-bottom:20px; font-size:14px;">
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button id="cpCancel" class="btn" style="background:#e2e8f0; color:#475569; width:auto; border:none; padding:8px 15px; cursor:pointer; border-radius:4px; font-weight:bold;">Cancel</button>
+                <button id="cpConfirm" class="btn btn-blue" style="width:auto; border:none; background:#3b82f6; color:white; padding:8px 15px; cursor:pointer; border-radius:4px; font-weight:bold;">Confirm</button>
+            </div>
+        `;
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        const input = modal.querySelector('#cpInput');
+        input.focus();
+        
+        modal.querySelector('#cpCancel').onclick = () => { overlay.remove(); resolve(null); };
+        modal.querySelector('#cpConfirm').onclick = () => { overlay.remove(); resolve(input.value.trim()); };
+        input.onkeyup = (e) => { if(e.key === 'Enter') modal.querySelector('#cpConfirm').click(); };
+    });
+};
+
+window.customConfirm = function(title, message) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; display:flex; align-items:center; justify-content:center;';
+        const modal = document.createElement('div');
+        modal.style.cssText = 'background:white; padding:20px; border-radius:8px; width:90%; max-width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
+        
+        modal.innerHTML = `
+            <h3 style="margin-bottom:10px;">${title}</h3>
+            <p style="font-size:14px; color:#64748b; margin-bottom:20px;">${message}</p>
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button id="ccCancel" class="btn" style="background:#e2e8f0; color:#475569; width:auto; border:none; padding:8px 15px; cursor:pointer; border-radius:4px; font-weight:bold;">Cancel</button>
+                <button id="ccConfirm" class="btn btn-blue" style="width:auto; border:none; background:#3b82f6; color:white; padding:8px 15px; cursor:pointer; border-radius:4px; font-weight:bold;">Confirm</button>
+            </div>
+        `;
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        modal.querySelector('#ccCancel').onclick = () => { overlay.remove(); resolve(false); };
+        modal.querySelector('#ccConfirm').onclick = () => { overlay.remove(); resolve(true); };
+    });
+};
+
+
+// TOAST NOTIFICATION SYSTEM
+function showToast(message, type = 'info') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    
+    // Auto-detect error/success based on text if type is info
+    if (type === 'info') {
+        const lowerMsg = message.toLowerCase();
+        if (lowerMsg.includes('error') || lowerMsg.includes('invalid') || lowerMsg.includes('denied') || lowerMsg.includes('unable') || lowerMsg.includes('please enter') || lowerMsg.includes('please provide') || lowerMsg.includes('alert')) type = 'error';
+        if (lowerMsg.includes('success') || lowerMsg.includes('closed') || lowerMsg.includes('received')) type = 'success';
+    }
+    
+    toast.className = `toast ${type}`;
+    toast.innerText = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3500);
+}
+
         const SUPABASE_URL = "https://yjgskbdtnyzsmuzvnrsz.supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqZ3NrYmR0bnl6c211enZucnN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NDQ5NzEsImV4cCI6MjEwNjUyMDk3MX0.elz2qyCCXBRFTCdbzqYqoiltkkmBALKrQhAv-I4SC7Q";
         const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -108,7 +193,7 @@
             
             const { data } = await client.from('staff_directory').select('*').eq('email', session.user.email).maybeSingle();
             currentUser = data;
-            if(!currentUser || currentUser.status !== 'active') { alert("Access Denied"); window.location.href = 'login.html'; return; }
+            if(!currentUser || currentUser.status !== 'active') { showToast("Access Denied"); window.location.href = 'login.html'; return; }
             
             document.getElementById('staffLabel').textContent = `${currentUser.name} (${currentUser.role.toUpperCase()})`;
 
@@ -202,11 +287,11 @@
         }
 
         async function reportIssue() {
-            const reason = prompt("What item is missing?");
+            const reason = await customPrompt("Action Required", "What item is missing?");
             if(!reason) return;
             await client.from('orders').update({status: 'ON_HOLD', delivery_notes: 'ISSUE: ' + reason}).eq('id', activePackOrderId);
             await client.from('order_audit_logs').insert([{ order_id: activePackOrderId, old_status: 'PACKING_IN_PROGRESS', new_status: 'ON_HOLD', changed_by: currentUser.name, notes: 'Stock Issue: ' + reason }]);
-            alert("Sent to Admin!");
+            showToast("Sent to Admin!");
             closeModal('packingModal');
             loadData();
         }
@@ -218,10 +303,10 @@
 
         async function batchDispatch() {
             const riderVal = document.getElementById('riderSelect').value;
-            if(!riderVal) { alert("Please select a rider."); return; }
+            if(!riderVal) { showToast("Please select a rider."); return; }
             
             const selectedIds = Array.from(document.querySelectorAll('.dispatch-cb:checked')).map(cb => cb.value);
-            if(selectedIds.length === 0) { alert("Select at least one order."); return; }
+            if(selectedIds.length === 0) { showToast("Select at least one order."); return; }
 
             const [riderName, riderPhone] = riderVal.split('|');
             const notificationsHtml = [];

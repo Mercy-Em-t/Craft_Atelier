@@ -37,7 +37,7 @@
         
     
     window.resolveIssue = async (id) => {
-        const confirmResolve = confirm("Have you secured the missing items? This will send the order back to the warehouse floor for packing.");
+        const confirmResolve = await customConfirm("Please Confirm", "Have you secured the missing items? This will send the order back to the warehouse floor for packing.");
         if(!confirmResolve) return;
         
         const staffEmail = (await client.auth.getUser()).data.user.email;
@@ -48,13 +48,13 @@
             changed_by: 'Admin: ' + staffEmail, notes: 'Admin resolved stock issue'
         }]);
         
-        alert("Order successfully re-queued for packing!");
+        showToast("Order successfully re-queued for packing!");
         loadTracking('ALL');
         loadAnalytics();
     };
 
     window.cancelOrder = async (id) => {
-        const reason = prompt("Enter reason for cancellation / refund:");
+        const reason = await customPrompt("Action Required", "Enter reason for cancellation / refund:");
         if(!reason) return;
         
         const staffEmail = (await client.auth.getUser()).data.user.email;
@@ -65,13 +65,13 @@
             changed_by: 'Admin: ' + staffEmail, notes: 'Order Cancelled: ' + reason
         }]);
         
-        alert("Order Cancelled.");
+        showToast("Order Cancelled.");
         loadTracking('ALL');
         loadAnalytics();
     };
 
     window.markDelivered = async (id, correctPin) => {
-        const pin = prompt("Enter the 4-digit Delivery PIN provided by the customer:");
+        const pin = await customPrompt("Action Required", "Enter the 4-digit Delivery PIN provided by the customer:");
         if (!pin) return;
         
         if (pin === correctPin) {
@@ -83,11 +83,11 @@
             }]);
             
             if(!error) {
-                alert("Order successfully marked as DELIVERED!");
+                showToast("Order successfully marked as DELIVERED!");
                 loadTracking('ALL');
             }
         } else {
-            alert("❌ Invalid PIN. Please confirm the PIN with the customer.");
+            showToast("❌ Invalid PIN. Please confirm the PIN with the customer.");
         }
     };
 
@@ -177,15 +177,15 @@
     }
 
     window.addKit = async () => {
-        const choice = prompt("Enter '1' to add a Single Kit manually.\nEnter '2' to Bulk Import kits via JSON array.");
+        const choice = await customPrompt("Action Required", "Enter '1' to add a Single Kit manually.\nEnter '2' to Bulk Import kits via JSON array.");
         
         if (choice === '1') {
-            const title = prompt("Enter new kit title:");
+            const title = await customPrompt("Action Required", "Enter new kit title:");
             if(!title) return;
             const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-            const price = prompt("Enter price in KES (e.g. 2500):", "2500");
+            const price = await customPrompt("Action Required", "Enter price in KES (e.g. 2500):", "2500");
             if(!price) return;
-            const stock = prompt("Enter initial inventory count:", "10");
+            const stock = await customPrompt("Action Required", "Enter initial inventory count:", "10");
             
             await client.from('kits').insert([{
                 title, slug, price_cents: parseInt(price)*100, inventory_count: parseInt(stock),
@@ -193,7 +193,7 @@
             }]);
             loadAdminExtras();
         } else if (choice === '2') {
-            const jsonStr = prompt("Paste your JSON array of kits here:\nExample: [{title: 'A', price_cents: 1000}, ...]");
+            const jsonStr = await customPrompt("Action Required", "Paste your JSON array of kits here:\nExample: [{title: 'A', price_cents: 1000}, ...]");
             if(!jsonStr) return;
             try {
                 let parsed = JSON.parse(jsonStr);
@@ -212,20 +212,20 @@
                 }));
                 
                 const { error } = await client.from('kits').insert(toInsert);
-                if(error) alert("Import Error: " + error.message);
-                else alert("Successfully imported " + toInsert.length + " kits!");
+                if(error) showToast("Import Error: " + error.message);
+                else showToast("Successfully imported " + toInsert.length + " kits!");
                 
                 loadAdminExtras();
             } catch (err) {
-                alert("Invalid JSON format. Please try again.");
+                showToast("Invalid JSON format. Please try again.");
             }
         }
     };
 
     window.editKit = async (k) => {
-        const stock = prompt(`Update inventory for ${k.title}:`, k.inventory_count);
+        const stock = await customPrompt("Action Required", `Update inventory for ${k.title}:`, k.inventory_count);
         if(stock === null) return;
-        const price = prompt(`Update price (KES) for ${k.title}:`, k.price_cents / 100);
+        const price = await customPrompt("Action Required", `Update price (KES) for ${k.title}:`, k.price_cents / 100);
         if(price === null) return;
 
         // 1. Archive the old record
@@ -246,13 +246,13 @@
     window.saveSetting = async (key, val) => {
         if(!val) return;
         await client.from('business_settings').upsert({setting_key: key, setting_value: val});
-        alert("Setting saved successfully!");
+        showToast("Setting saved successfully!");
     };
 
     window.addRider = async () => {
-        const name = prompt("Enter rider name:");
+        const name = await customPrompt("Action Required", "Enter rider name:");
         if(!name) return;
-        const phone = prompt("Enter phone number:");
+        const phone = await customPrompt("Action Required", "Enter phone number:");
         if(!phone) return;
         await client.from('riders').insert([{name, phone}]);
         loadCommissioning();
@@ -268,11 +268,11 @@
     };
 
     window.addStaff = async () => {
-        const email = prompt("Enter staff email:");
+        const email = await customPrompt("Action Required", "Enter staff email:");
         if(!email) return;
-        const name = prompt("Enter staff name:");
+        const name = await customPrompt("Action Required", "Enter staff name:");
         if(!name) return;
-        let role = prompt("Enter role (packer, dispatcher, or admin):", "packer");
+        let role = await customPrompt("Action Required", "Enter role (packer, dispatcher, or admin):", "packer");
         if (!['packer', 'dispatcher', 'admin'].includes(role)) role = 'packer';
         await client.from('staff_directory').insert([{email, name, role}]);
         loadCommissioning();
@@ -317,7 +317,15 @@
         .btn-verify:hover { background: #15803d; }
         
         .empty-state { text-align: center; padding: 40px 20px; color: #64748b; }
-    </style>
+    
+/* TOAST NOTIFICATIONS */
+#toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+.toast { background: white; color: #0f172a; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-left: 4px solid #3b82f6; font-weight: 600; font-size: 14px; animation: slideIn 0.3s ease-out; max-width: 350px; transition: opacity 0.3s; }
+.toast.error { border-left-color: #ef4444; }
+.toast.success { border-left-color: #10b981; }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+</style>
 </head>
 <body>
 
@@ -477,6 +485,83 @@
 </div> <!-- End of container -->
 
 <script>
+
+// CUSTOM MODAL SYSTEM
+window.customPrompt = function(title, message, placeholder = '') {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; display:flex; align-items:center; justify-content:center;';
+        const modal = document.createElement('div');
+        modal.style.cssText = 'background:white; padding:20px; border-radius:8px; width:90%; max-width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
+        
+        modal.innerHTML = `
+            <h3 style="margin-bottom:10px;">${title}</h3>
+            <p style="font-size:14px; color:#64748b; margin-bottom:15px;">${message}</p>
+            <input type="text" id="cpInput" placeholder="${placeholder}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:4px; margin-bottom:20px; font-size:14px;">
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button id="cpCancel" class="btn" style="background:#e2e8f0; color:#475569; width:auto; border:none; padding:8px 15px; cursor:pointer; border-radius:4px; font-weight:bold;">Cancel</button>
+                <button id="cpConfirm" class="btn btn-blue" style="width:auto; border:none; background:#3b82f6; color:white; padding:8px 15px; cursor:pointer; border-radius:4px; font-weight:bold;">Confirm</button>
+            </div>
+        `;
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        const input = modal.querySelector('#cpInput');
+        input.focus();
+        
+        modal.querySelector('#cpCancel').onclick = () => { overlay.remove(); resolve(null); };
+        modal.querySelector('#cpConfirm').onclick = () => { overlay.remove(); resolve(input.value.trim()); };
+        input.onkeyup = (e) => { if(e.key === 'Enter') modal.querySelector('#cpConfirm').click(); };
+    });
+};
+
+window.customConfirm = function(title, message) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; display:flex; align-items:center; justify-content:center;';
+        const modal = document.createElement('div');
+        modal.style.cssText = 'background:white; padding:20px; border-radius:8px; width:90%; max-width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.2);';
+        
+        modal.innerHTML = `
+            <h3 style="margin-bottom:10px;">${title}</h3>
+            <p style="font-size:14px; color:#64748b; margin-bottom:20px;">${message}</p>
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button id="ccCancel" class="btn" style="background:#e2e8f0; color:#475569; width:auto; border:none; padding:8px 15px; cursor:pointer; border-radius:4px; font-weight:bold;">Cancel</button>
+                <button id="ccConfirm" class="btn btn-blue" style="width:auto; border:none; background:#3b82f6; color:white; padding:8px 15px; cursor:pointer; border-radius:4px; font-weight:bold;">Confirm</button>
+            </div>
+        `;
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        modal.querySelector('#ccCancel').onclick = () => { overlay.remove(); resolve(false); };
+        modal.querySelector('#ccConfirm').onclick = () => { overlay.remove(); resolve(true); };
+    });
+};
+
+
+// TOAST NOTIFICATION SYSTEM
+function showToast(message, type = 'info') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    
+    // Auto-detect error/success based on text if type is info
+    if (type === 'info') {
+        const lowerMsg = message.toLowerCase();
+        if (lowerMsg.includes('error') || lowerMsg.includes('invalid') || lowerMsg.includes('denied') || lowerMsg.includes('unable') || lowerMsg.includes('please enter') || lowerMsg.includes('please provide') || lowerMsg.includes('alert')) type = 'error';
+        if (lowerMsg.includes('success') || lowerMsg.includes('closed') || lowerMsg.includes('received')) type = 'success';
+    }
+    
+    toast.className = `toast ${type}`;
+    toast.innerText = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3500);
+}
+
     const SUPABASE_URL = "https://yjgskbdtnyzsmuzvnrsz.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqZ3NrYmR0bnl6c211enZucnN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NDQ5NzEsImV4cCI6MjEwNjUyMDk3MX0.elz2qyCCXBRFTCdbzqYqoiltkkmBALKrQhAv-I4SC7Q";
     const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -507,7 +592,7 @@
             .order('created_at', { ascending: false });
 
         if (error) {
-            alert("Error loading queue: " + error.message);
+            showToast("Error loading queue: " + error.message);
             return;
         }
 
@@ -545,7 +630,7 @@
     }
 
     async function verifyOrder(orderId) {
-        const confirmed = confirm(`Are you sure you want to verify Order #${orderId} and release it to the warehouse?`);
+        const confirmed = await customConfirm("Please Confirm", `Are you sure you want to verify Order #${orderId} and release it to the warehouse?`);
         if (!confirmed) return;
 
         const { error } = await client
@@ -554,9 +639,9 @@
             .eq('order_number', orderId);
 
         if (error) {
-            alert("Error verifying order: " + error.message);
+            showToast("Error verifying order: " + error.message);
         } else {
-            alert(`Order #${orderId} has been successfully verified and sent to Ops Packing!`);
+            showToast(`Order #${orderId} has been successfully verified and sent to Ops Packing!`);
             loadVerificationQueue();
         loadCommissioning();
         loadAdminExtras();
@@ -596,7 +681,7 @@
         
     
     window.resolveIssue = async (id) => {
-        const confirmResolve = confirm("Have you secured the missing items? This will send the order back to the warehouse floor for packing.");
+        const confirmResolve = await customConfirm("Please Confirm", "Have you secured the missing items? This will send the order back to the warehouse floor for packing.");
         if(!confirmResolve) return;
         
         const staffEmail = (await client.auth.getUser()).data.user.email;
@@ -607,13 +692,13 @@
             changed_by: 'Admin: ' + staffEmail, notes: 'Admin resolved stock issue'
         }]);
         
-        alert("Order successfully re-queued for packing!");
+        showToast("Order successfully re-queued for packing!");
         loadTracking('ALL');
         loadAnalytics();
     };
 
     window.cancelOrder = async (id) => {
-        const reason = prompt("Enter reason for cancellation / refund:");
+        const reason = await customPrompt("Action Required", "Enter reason for cancellation / refund:");
         if(!reason) return;
         
         const staffEmail = (await client.auth.getUser()).data.user.email;
@@ -624,13 +709,13 @@
             changed_by: 'Admin: ' + staffEmail, notes: 'Order Cancelled: ' + reason
         }]);
         
-        alert("Order Cancelled.");
+        showToast("Order Cancelled.");
         loadTracking('ALL');
         loadAnalytics();
     };
 
     window.markDelivered = async (id, correctPin) => {
-        const pin = prompt("Enter the 4-digit Delivery PIN provided by the customer:");
+        const pin = await customPrompt("Action Required", "Enter the 4-digit Delivery PIN provided by the customer:");
         if (!pin) return;
         
         if (pin === correctPin) {
@@ -642,11 +727,11 @@
             }]);
             
             if(!error) {
-                alert("Order successfully marked as DELIVERED!");
+                showToast("Order successfully marked as DELIVERED!");
                 loadTracking('ALL');
             }
         } else {
-            alert("❌ Invalid PIN. Please confirm the PIN with the customer.");
+            showToast("❌ Invalid PIN. Please confirm the PIN with the customer.");
         }
     };
 
@@ -736,15 +821,15 @@
     }
 
     window.addKit = async () => {
-        const choice = prompt("Enter '1' to add a Single Kit manually.\nEnter '2' to Bulk Import kits via JSON array.");
+        const choice = await customPrompt("Action Required", "Enter '1' to add a Single Kit manually.\nEnter '2' to Bulk Import kits via JSON array.");
         
         if (choice === '1') {
-            const title = prompt("Enter new kit title:");
+            const title = await customPrompt("Action Required", "Enter new kit title:");
             if(!title) return;
             const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-            const price = prompt("Enter price in KES (e.g. 2500):", "2500");
+            const price = await customPrompt("Action Required", "Enter price in KES (e.g. 2500):", "2500");
             if(!price) return;
-            const stock = prompt("Enter initial inventory count:", "10");
+            const stock = await customPrompt("Action Required", "Enter initial inventory count:", "10");
             
             await client.from('kits').insert([{
                 title, slug, price_cents: parseInt(price)*100, inventory_count: parseInt(stock),
@@ -752,7 +837,7 @@
             }]);
             loadAdminExtras();
         } else if (choice === '2') {
-            const jsonStr = prompt("Paste your JSON array of kits here:\nExample: [{title: 'A', price_cents: 1000}, ...]");
+            const jsonStr = await customPrompt("Action Required", "Paste your JSON array of kits here:\nExample: [{title: 'A', price_cents: 1000}, ...]");
             if(!jsonStr) return;
             try {
                 let parsed = JSON.parse(jsonStr);
@@ -771,20 +856,20 @@
                 }));
                 
                 const { error } = await client.from('kits').insert(toInsert);
-                if(error) alert("Import Error: " + error.message);
-                else alert("Successfully imported " + toInsert.length + " kits!");
+                if(error) showToast("Import Error: " + error.message);
+                else showToast("Successfully imported " + toInsert.length + " kits!");
                 
                 loadAdminExtras();
             } catch (err) {
-                alert("Invalid JSON format. Please try again.");
+                showToast("Invalid JSON format. Please try again.");
             }
         }
     };
 
     window.editKit = async (k) => {
-        const stock = prompt(`Update inventory for ${k.title}:`, k.inventory_count);
+        const stock = await customPrompt("Action Required", `Update inventory for ${k.title}:`, k.inventory_count);
         if(stock === null) return;
-        const price = prompt(`Update price (KES) for ${k.title}:`, k.price_cents / 100);
+        const price = await customPrompt("Action Required", `Update price (KES) for ${k.title}:`, k.price_cents / 100);
         if(price === null) return;
 
         // 1. Archive the old record
@@ -805,13 +890,13 @@
     window.saveSetting = async (key, val) => {
         if(!val) return;
         await client.from('business_settings').upsert({setting_key: key, setting_value: val});
-        alert("Setting saved successfully!");
+        showToast("Setting saved successfully!");
     };
 
     window.addRider = async () => {
-        const name = prompt("Enter rider name:");
+        const name = await customPrompt("Action Required", "Enter rider name:");
         if(!name) return;
-        const phone = prompt("Enter phone number:");
+        const phone = await customPrompt("Action Required", "Enter phone number:");
         if(!phone) return;
         await client.from('riders').insert([{name, phone}]);
         loadCommissioning();
@@ -827,11 +912,11 @@
     };
 
     window.addStaff = async () => {
-        const email = prompt("Enter staff email:");
+        const email = await customPrompt("Action Required", "Enter staff email:");
         if(!email) return;
-        const name = prompt("Enter staff name:");
+        const name = await customPrompt("Action Required", "Enter staff name:");
         if(!name) return;
-        let role = prompt("Enter role (packer, dispatcher, or admin):", "packer");
+        let role = await customPrompt("Action Required", "Enter role (packer, dispatcher, or admin):", "packer");
         if (!['packer', 'dispatcher', 'admin'].includes(role)) role = 'packer';
         await client.from('staff_directory').insert([{email, name, role}]);
         loadCommissioning();
