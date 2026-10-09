@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+ <title>Craft Atelier • Storefront</title>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <style>
+ :root {
+ --bg: #faf7f2; --surface: #ffffff; --text-main: #1c1917; --text-muted: #78716c;
+ --accent: #292524; --border: #e7e5e4; --highlight: #d97706; --mpesa: #4ade80;
+ }
+ * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
+ body { background: var(--bg); color: var(--text-main); padding-bottom: 80px; }
+ header { padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; }
+ .brand { font-size: 18px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; text-decoration: none; color: var(--text-main); }
+ .header-nav { display: flex; align-items: center; gap: 16px; }
+ .header-nav a { color: var(--text-muted); font-size: 14px; text-decoration: none; font-weight: 600; cursor: pointer; }
+ .header-nav a:hover, .header-nav a.active { color: var(--text-main); }
+ 
+ .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+ 
+ /* Filters */
+ .filter-scroll { display: flex; overflow-x: auto; gap: 12px; margin-bottom: 24px; padding-bottom: 8px; }
+ .filter-pill { padding: 8px 16px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font-size: 13px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+ .filter-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+ .section-title { font-size: 24px; font-weight: 800; margin-bottom: 16px; margin-top: 32px; }
+
+ /* Grid */
+ .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 24px; }
+ .kit-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; cursor: pointer; transition: transform 0.2s; display: flex; flex-direction: column; }
+ .kit-card:hover { transform: translateY(-4px); }
+ .kit-img { width: 100%; height: 220px; object-fit: cover; background: #e7e5e4; }
+ .kit-body { padding: 16px; display: flex; flex-direction: column; flex-grow: 1; }
+ .badge { align-self: flex-start; font-size: 11px; font-weight: 700; text-transform: uppercase; background: #fef3c7; color: var(--highlight); padding: 4px 8px; border-radius: 4px; margin-bottom: 8px; }
+ .kit-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; line-height: 1.3; }
+ .price { font-size: 16px; font-weight: 800; margin-top: auto; padding-top: 12px; }
+ 
+ /* Modals */
+ .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: flex-end; justify-content: center; z-index: 100; padding: 20px; }
+ .modal-sheet { background: var(--surface); width: 100%; max-width: 500px; border-radius: 24px 24px 0 0; padding: 24px; position: relative; max-height: 90vh; overflow-y: auto; }
+ @media (min-width: 600px) { .modal-sheet { border-radius: 24px; align-self: center; } }
+ .close-btn { position: absolute; top: 16px; right: 16px; background: var(--border); border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-weight: bold; }
+ 
+ .btn { background: var(--accent); color: #fff; border: none; padding: 16px 20px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 12px; }
+ .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+ .btn-success { background: #16a34a; }
+
+ /* Gallery */
+ .main-img { width: 100%; height: 280px; object-fit: cover; border-radius: 12px; margin-bottom: 12px; background: #e7e5e4; }
+ .thumb-row { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 20px; }
+ .thumb-img { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid transparent; opacity: 0.6; }
+ .thumb-img:hover, .thumb-img.active { opacity: 1; border-color: var(--accent); }
+
+ /* Forms & Cart */
+ .form-group { margin-bottom: 16px; }
+ .form-group label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; color: var(--text-muted); }
+ .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; background: var(--bg); }
+ 
+ .cart-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+ .cart-item-title { font-weight: 600; font-size: 14px; }
+ .cart-item-price { font-weight: 800; font-size: 14px; }
+ .cart-total { display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; margin: 20px 0; }
+ 
+ .mpesa-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px; }
+ .mpesa-box h3 { color: #166534; font-size: 24px; margin-bottom: 4px; }
+ .mpesa-box p { color: #15803d; font-size: 14px; }
+ </style>
+</head>
+<body>
+
+<header>
+ <a href="index.html" class="brand">Craft Atelier</a>
+ <div class="header-nav">
+ <a href="#" class="active">Kits</a>
+ <a onclick="openCartModal()" style="color: var(--text-main);">
+ 🛒 Cart (<span id="cartBadge">0</span>)
+ </a>
+ </div>
+</header>
+
+<div class="container">
+ <div class="filter-scroll" id="categoryFilters">
+ <button class="filter-pill active" onclick="setCategory('All')">All Kits</button>
+ <button class="filter-pill" onclick="setCategory('Bags')">Bags</button>
+ <button class="filter-pill" onclick="setCategory('Hats')">Hats</button>
+ <button class="filter-pill" onclick="setCategory('Accessories')">Accessories</button>
+ </div>
+ <div class="catalog-grid" id="kitCatalog"></div>
+</div>
+
+<!-- Kit Details Modal -->
+<div class="modal-overlay" id="kitDetailsModal">
+ <div class="modal-sheet">
+ <button class="close-btn" onclick="closeModals()">✕</button>
+ <img id="mainDetailImg" class="main-img" src="" alt="Kit Preview">
+ <div class="thumb-row" id="thumbnailRow"></div>
+ 
+ <h2 id="detailTitle" style="margin-bottom: 8px;">Kit Title</h2>
+ <div class="price" id="detailPrice" style="margin-bottom: 16px;">KES 0</div>
+ <p id="detailDesc" style="color: var(--text-muted); font-size: 14px; line-height: 1.5; margin-bottom: 20px;"></p>
+ <button class="btn" onclick="addToCart()">Add to Cart</button>
+ </div>
+</div>
+
+<!-- Cart Modal -->
+<div class="modal-overlay" id="cartModal">
+ <div class="modal-sheet">
+ <button class="close-btn" onclick="closeModals()">✕</button>
+ <h2>Your Cart</h2>
+ <div id="cartItemsContainer" style="margin-top: 16px;"></div>
+ <div class="cart-total">
+ <span>Total</span>
+ <span id="cartTotalDisplay">KES 0</span>
+ </div>
+ <button class="btn" onclick="proceedToDelivery()" id="checkoutBtn">Proceed to Checkout</button>
+ </div>
+</div>
+
+<!-- Delivery Modal (Step 1) -->
+<div class="modal-overlay" id="deliveryModal">
+ <div class="modal-sheet">
+ <button class="close-btn" onclick="closeModals()">✕</button>
+ <h2 style="margin-bottom: 16px;">Delivery Details</h2>
+ <div class="form-group"><label>Full Name</label><input type="text" id="custName"></div>
+ <div class="form-group"><label>Phone Number</label><input type="tel" id="custPhone"></div>
+ <div class="form-group">
+ <label>Delivery Method</label>
+ <select id="delType" onchange="updateDeliveryFields()">
+ <option value="rider">Motorbike Rider (Doorstep)</option>
+ <option value="pickup">Pick-up Station</option>
+ </select>
+ </div>
+ <div class="form-group" id="addressGroup">
+ <label id="addressLabel">Delivery Location</label>
+ <textarea id="delAddress" rows="2"></textarea>
+ </div>
+ <div class="form-group" id="pickupGroup" style="display: none;">
+ <label>Pick-up Station</label>
+ <select id="pickupPoint">
+ <option value="CBD - The Hub">CBD - The Hub</option>
+ <option value="Westlands - Sarit">Westlands - Sarit</option>
+ </select>
+ </div>
+ <button class="btn" onclick="proceedToPayment()">Next: Payment</button>
+ </div>
+</div>
+
+<!-- M-Pesa Modal (Step 2) -->
+<div class="modal-overlay" id="mpesaModal">
+ <div class="modal-sheet">
+ <button class="close-btn" onclick="closeModals()">✕</button>
+ <h2 style="margin-bottom: 16px;">Complete Payment</h2>
+ <div class="mpesa-box">
+ <p>Paybill / Buy Goods Till</p>
+ <h3 id="dynamicTill">Loading...</h3>
+ <p>Craft Atelier Ltd.</p>
+ </div>
+ <p style="font-size: 14px; text-align: center; margin-bottom: 20px;">
+ Please pay <strong id="mpesaTotalAmount">KES 0</strong> via M-Pesa to the Till Number above, then enter the confirmation code below.
+ </p>
+ <div class="form-group">
+ <label>M-Pesa Confirmation Code</label>
+ <input type="text" id="mpesaCode" placeholder="e.g. QKZ9A1B2C3" style="text-transform: uppercase;">
+ </div>
+ <button class="btn btn-success" id="submitOrderBtn" onclick="submitOrder()">Confirm & Place Order</button>
+ </div>
+</div>
+
+<script>
+ const SUPABASE_URL = "https://yjgskbdtnyzsmuzvnrsz.supabase.co";
+ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqZ3NrYmR0bnl6c211enZucnN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NDQ5NzEsImV4cCI6MjEwNjUyMDk3MX0.elz2qyCCXBRFTCdbzqYqoiltkkmBALKrQhAv-I4SC7Q";
+ const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+ 
+ let allKits = [];
+ let activeCategory = 'All';
+ let selectedKit = null;
+ 
+    async function fetchBusinessSettings() {
+        const { data } = await client.from('business_settings').select('*');
+        if(data) {
+            const till = data.find(s => s.setting_key === 'mpesa_till');
+            if(till && document.getElementById('dynamicTill')) {
+                document.getElementById('dynamicTill').innerText = till.setting_value;
+            }
+        }
+    }
+
+let cart = [];
+
+ async function loadCatalog() {
+ const { data: kits } = await client.from('kits').select('*').order('price_cents');
+ if (kits) { allKits = kits; renderGrid(); }
+ }
+
+ function setCategory(cat) {
+ activeCategory = cat;
+ document.querySelectorAll('.filter-pill').forEach(btn => btn.classList.toggle('active', btn.innerText === cat || (cat === 'All' && btn.innerText === 'All Kits')));
+ renderGrid();
+ }
+
+ function renderGrid() {
+ const container = document.getElementById('kitCatalog');
+ container.innerHTML = '';
+ let filtered = allKits;
+ if (activeCategory !== 'All') {
+ filtered = allKits.filter(k => k.category === activeCategory);
+ }
+ if (filtered.length === 0) {
+ container.innerHTML = '<p style="padding: 40px; text-align: center; width:100%;">No kits found.</p>'; return;
+ }
+ filtered.forEach(k => {
+ const card = document.createElement('div');
+ card.className = 'kit-card';
+ card.onclick = () => openKitDetails(k);
+ const imgUrl = (k.image_urls && k.image_urls.length > 0) ? k.image_urls[0] : 'https://placehold.co/400/e7e5e4/a8a29e?text=No+Image';
+ card.innerHTML = `
+ <img class="kit-img" src="${imgUrl}">
+ <div class="kit-body">
+ <div class="kit-title">${k.title}</div>
+ <div class="price">KES ${(k.price_cents / 100).toLocaleString()}</div>
+ </div>`;
+ container.appendChild(card);
+ });
+ }
+
+ function openKitDetails(kit) {
+ selectedKit = kit;
+ document.getElementById('detailTitle').innerText = kit.title;
+ document.getElementById('detailPrice').innerText = 'KES ' + (kit.price_cents / 100).toLocaleString();
+ document.getElementById('detailDesc').innerText = kit.description;
+ 
+ const images = (kit.image_urls && kit.image_urls.length > 0) ? kit.image_urls : ['https://placehold.co/400/e7e5e4/a8a29e?text=No+Image'];
+ document.getElementById('mainDetailImg').src = images[0];
+ 
+ const thumbRow = document.getElementById('thumbnailRow');
+ thumbRow.innerHTML = '';
+ images.forEach((img, idx) => {
+ const t = document.createElement('img');
+ t.className = 'thumb-img';
+ t.src = img;
+ t.onclick = () => document.getElementById('mainDetailImg').src = img;
+ thumbRow.appendChild(t);
+ });
+ 
+ closeModals();
+ document.getElementById('kitDetailsModal').style.display = 'flex';
+ }
+
+ function addToCart() {
+ cart.push(selectedKit);
+ document.getElementById('cartBadge').innerText = cart.length;
+ closeModals();
+ openCartModal();
+ }
+
+ function openCartModal() {
+ closeModals();
+ const container = document.getElementById('cartItemsContainer');
+ container.innerHTML = '';
+ if (cart.length === 0) {
+ container.innerHTML = '<p>Your cart is empty.</p>';
+ document.getElementById('checkoutBtn').disabled = true;
+ } else {
+ document.getElementById('checkoutBtn').disabled = false;
+ cart.forEach(item => {
+ const div = document.createElement('div');
+ div.className = 'cart-item';
+ div.innerHTML = `<span class="cart-item-title">${item.title}</span><span class="cart-item-price">KES ${(item.price_cents/100).toLocaleString()}</span>`;
+ container.appendChild(div);
+ });
+ }
+ const total = cart.reduce((sum, item) => sum + item.price_cents, 0) / 100;
+ document.getElementById('cartTotalDisplay').innerText = 'KES ' + total.toLocaleString();
+ document.getElementById('cartModal').style.display = 'flex';
+ }
+
+ function proceedToDelivery() { closeModals(); document.getElementById('deliveryModal').style.display = 'flex'; }
+ 
+ function updateDeliveryFields() {
+ const type = document.getElementById('delType').value;
+ document.getElementById('addressGroup').style.display = type === 'rider' ? 'block' : 'none';
+ document.getElementById('pickupGroup').style.display = type === 'pickup' ? 'block' : 'none';
+ }
+
+ function proceedToPayment() {
+ const name = document.getElementById('custName').value;
+ const phone = document.getElementById('custPhone').value;
+ if (!name || !phone) return alert("Please fill name and phone.");
+ closeModals();
+ const total = cart.reduce((sum, item) => sum + item.price_cents, 0) / 100;
+ document.getElementById('mpesaTotalAmount').innerText = 'KES ' + total.toLocaleString();
+ document.getElementById('mpesaModal').style.display = 'flex';
+ }
+
+ function closeModals() {
+ document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
+ }
+
+ async function submitOrder() {
+ const mpesa = document.getElementById('mpesaCode').value.trim();
+ if (!mpesa) return alert("Please enter M-Pesa code.");
+ 
+ const name = document.getElementById('custName').value;
+ const phone = document.getElementById('custPhone').value;
+ const type = document.getElementById('delType').value;
+ const addr = type === 'pickup' ? document.getElementById('pickupPoint').value : document.getElementById('delAddress').value;
+ 
+ const btn = document.getElementById('submitOrderBtn');
+ btn.disabled = true;
+ btn.textContent = "Processing...";
+ 
+ const orderSummary = cart.length === 1 ? cart[0].title : `${cart[0].title} + ${cart.length - 1} more`;
+ 
+ const subtotal = cart.reduce((sum, item) => sum + item.price, 0);
+ const sel = document.getElementById('delType');
+ const delCostCents = parseInt(sel.options[sel.selectedIndex].getAttribute('data-cost')) * 100;
+ const total = subtotal + delCostCents;
+
+ const { error } = await client.from('orders').insert([{
+ customer_name: name, customer_phone: phone, delivery_type: type, delivery_address: addr,
+ kit_name: orderSummary, payment_ref: mpesa, cart_items: cart, status: 'PENDING_PAYMENT',
+ subtotal_cents: subtotal, delivery_fee_cents: delCostCents, total_cents: total
+ }]);
+ 
+ if (error) {
+ alert("Error: " + error.message);
+ btn.disabled = false;
+ btn.textContent = "Confirm & Place Order";
+ return;
+ }
+ 
+ alert("Order Received! Once our team verifies your M-Pesa payment, it will be dispatched to the warehouse.");
+ cart = []; document.getElementById('cartBadge').innerText = '0';
+ 
+ // Reset Form Fields
+ document.getElementById('custName').value = '';
+ document.getElementById('custPhone').value = '';
+ document.getElementById('delAddress').value = '';
+ document.getElementById('pickupPoint').value = '';
+ document.getElementById('mpesaCode').value = '';
+ document.getElementById('delType').value = 'rider';
+ 
+ closeModals();
+ btn.disabled = false; btn.textContent = "Confirm & Place Order";
+ }
+
+ window.addEventListener('DOMContentLoaded', loadCatalog);
+</script>
+</body>
+</html>

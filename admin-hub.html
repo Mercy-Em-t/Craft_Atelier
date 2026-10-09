@@ -1,0 +1,772 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin HQ - Financial Verification</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+    
+    async function loadCommissioning() {
+        // Load Riders
+        const { data: riders } = await client.from('riders').select('*').order('created_at', {ascending: false});
+        const rTbody = document.getElementById('ridersList');
+        rTbody.innerHTML = '';
+        (riders || []).forEach(r => {
+            const btn = r.status === 'active' 
+                ? `<button class="btn-verify" style="background: #dc2626;" onclick="toggleRider('${r.id}', 'inactive')">Suspend</button>`
+                : `<button class="btn-verify" style="background: #16a34a;" onclick="toggleRider('${r.id}', 'active')">Activate</button>`;
+            const badge = r.status === 'active' ? `<span class="badge" style="background:#dcfce7;color:#166534">ACTIVE</span>` : `<span class="badge" style="background:#fee2e2;color:#991b1b">INACTIVE</span>`;
+            rTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.phone}</td><td>${badge}</td><td>${btn}</td></tr>`;
+        });
+
+        // Load Staff
+        const { data: staff } = await client.from('staff_directory').select('*').order('created_at', {ascending: false});
+        const sTbody = document.getElementById('staffList');
+        sTbody.innerHTML = '';
+        if(!staff || staff.length === 0) sTbody.innerHTML = '<tr><td colspan="4" class="empty-state">No staff listed yet.</td></tr>';
+        (staff || []).forEach(s => {
+            const btn = s.status === 'active' 
+                ? `<button class="btn-verify" style="background: #dc2626;" onclick="toggleStaff('${s.id}', 'revoked')">Revoke</button>`
+                : `<button class="btn-verify" style="background: #16a34a;" onclick="toggleStaff('${s.id}', 'active')">Restore</button>`;
+            const badge = s.status === 'active' ? `<span class="badge" style="background:#dcfce7;color:#166534">ACTIVE</span>` : `<span class="badge" style="background:#fee2e2;color:#991b1b">REVOKED</span>`;
+            sTbody.innerHTML += `<tr><td>${s.email}</td><td>${s.name}</td><td><strong style="text-transform:uppercase;font-size:11px;color:#64748b;">${s.role}</strong></td><td>${badge}</td><td>${btn}</td></tr>`;
+        });
+    }
+
+    
+        
+    window.markDelivered = async (id, correctPin) => {
+        const pin = prompt("Enter the 4-digit Delivery PIN provided by the customer:");
+        if (!pin) return;
+        
+        if (pin === correctPin) {
+            const { error } = await client.from('orders').update({status: 'DELIVERED'}).eq('id', id);
+            
+            await client.from('order_audit_logs').insert([{
+                order_id: id, old_status: 'IN_TRANSIT', new_status: 'DELIVERED',
+                changed_by: 'Admin / Rider App', notes: 'Delivery confirmed with valid PIN.'
+            }]);
+            
+            if(!error) {
+                alert("Order successfully marked as DELIVERED!");
+                loadTracking('ALL');
+            }
+        } else {
+            alert("❌ Invalid PIN. Please confirm the PIN with the customer.");
+        }
+    };
+
+    window.loadTracking = async (statusFilter = 'ALL') => {
+        let query = client.from('orders').select('*').order('created_at', {ascending: false}).limit(50);
+        
+        if (statusFilter !== 'ALL') {
+            query = query.eq('status', statusFilter);
+        }
+
+        const { data, error } = await query;
+        const tbody = document.getElementById('trackingList');
+        tbody.innerHTML = '';
+        
+        if (error) {
+            tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Error: ${error.message}</td></tr>`;
+            return;
+        }
+        
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No orders found for this filter.</td></tr>';
+            return;
+        }
+
+        data.forEach(order => {
+            const date = new Date(order.created_at).toLocaleDateString();
+            
+            let badgeStyle = "background: #f1f5f9; color: #475569;";
+            if(order.status === 'PENDING_PAYMENT') badgeStyle = "background: #fef08a; color: #854d0e;";
+            if(order.status === 'QUEUED_FOR_PACKING') badgeStyle = "background: #e2e8f0; color: #334155;";
+            if(order.status === 'PACKING_IN_PROGRESS') badgeStyle = "background: #fef08a; color: #854d0e;";
+            if(order.status === 'STAGED_FOR_DISPATCH') badgeStyle = "background: #ede9fe; color: #5b21b6;";
+            if(order.status === 'IN_TRANSIT') badgeStyle = "background: #dbeafe; color: #1e40af;";
+            if(order.status === 'DELIVERED') badgeStyle = "background: #dcfce7; color: #166534;";
+            
+            const badge = `<span class="badge" style="${badgeStyle}">${order.status.replace(/_/g, ' ')}</span>`;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>#${order.order_number}</strong></td>
+                    <td>${order.customer_name}<br><span style="font-size:12px;color:#64748b">${order.customer_phone}</span></td>
+                    <td>${order.kit_name}</td>
+                    <td>${date}</td>
+                    <td>
+                        ${badge}
+                        ${order.status === 'IN_TRANSIT' ? `<br><button class="btn-verify" style="margin-top:6px; background:#10b981; font-size:10px; padding:2px 6px;" onclick="markDelivered('${order.id}', '${order.delivery_pin}')">Complete Delivery</button>` : ''}
+                    </td>
+                </tr>
+            `;
+        });
+    };
+
+    // --- CATALOG & SETTINGS ---
+    async function loadAdminExtras() {
+        // Load Settings
+        const { data: settings } = await client.from('business_settings').select('*');
+        if(settings) {
+            const till = settings.find(s => s.setting_key === 'mpesa_till');
+            if(till) document.getElementById('settingMpesa').value = till.setting_value;
+        }
+
+        // Load Catalog
+        const { data: kits } = await client.from('kits').select('*').eq('is_archived', false).order('title');
+        const cTbody = document.getElementById('catalogList');
+        cTbody.innerHTML = '';
+        (kits || []).forEach(k => {
+            const stockBadge = k.inventory_count > 0 
+                ? `<span class="badge" style="background:#dcfce7;color:#166534">IN STOCK</span>` 
+                : `<span class="badge" style="background:#fee2e2;color:#991b1b">OUT OF STOCK</span>`;
+            
+            cTbody.innerHTML += `
+                <tr>
+                    <td><strong>${k.title}</strong><br><small style="color:#64748b;">/${k.slug}</small></td>
+                    <td>KES ${(k.price_cents / 100).toLocaleString()}</td>
+                    <td>${k.inventory_count} units</td>
+                    <td>${stockBadge}</td>
+                    <td>
+                        <button class="btn-verify" style="background:#64748b; padding:4px 8px; font-size:12px;" onclick='editKit(${JSON.stringify(k)})'>Edit</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    window.addKit = async () => {
+        const choice = prompt("Enter '1' to add a Single Kit manually.\nEnter '2' to Bulk Import kits via JSON array.");
+        
+        if (choice === '1') {
+            const title = prompt("Enter new kit title:");
+            if(!title) return;
+            const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            const price = prompt("Enter price in KES (e.g. 2500):", "2500");
+            if(!price) return;
+            const stock = prompt("Enter initial inventory count:", "10");
+            
+            await client.from('kits').insert([{
+                title, slug, price_cents: parseInt(price)*100, inventory_count: parseInt(stock),
+                description: 'New craft kit', category: 'DIY Kit', image_urls: ['https://via.placeholder.com/400'], bom_items: [], is_archived: false
+            }]);
+            loadAdminExtras();
+        } else if (choice === '2') {
+            const jsonStr = prompt("Paste your JSON array of kits here:\nExample: [{title: 'A', price_cents: 1000}, ...]");
+            if(!jsonStr) return;
+            try {
+                let parsed = JSON.parse(jsonStr);
+                if(!Array.isArray(parsed)) parsed = [parsed];
+                
+                const toInsert = parsed.map(k => ({
+                    title: k.title || 'Untitled',
+                    slug: (k.title || 'Untitled').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                    price_cents: k.price_cents || 0,
+                    inventory_count: k.inventory_count || 0,
+                    description: k.description || '',
+                    category: k.category || 'DIY Kit',
+                    image_urls: k.image_urls || [],
+                    bom_items: k.bom_items || [],
+                    is_archived: false
+                }));
+                
+                const { error } = await client.from('kits').insert(toInsert);
+                if(error) alert("Import Error: " + error.message);
+                else alert("Successfully imported " + toInsert.length + " kits!");
+                
+                loadAdminExtras();
+            } catch (err) {
+                alert("Invalid JSON format. Please try again.");
+            }
+        }
+    };
+
+    window.editKit = async (k) => {
+        const stock = prompt(`Update inventory for ${k.title}:`, k.inventory_count);
+        if(stock === null) return;
+        const price = prompt(`Update price (KES) for ${k.title}:`, k.price_cents / 100);
+        if(price === null) return;
+
+        // 1. Archive the old record
+        await client.from('kits').update({ is_archived: true }).eq('id', k.id);
+        
+        // 2. Insert the new record pointing to the old one as parent
+        await client.from('kits').insert([{
+            title: k.title, slug: k.slug,
+            price_cents: parseInt(price)*100, inventory_count: parseInt(stock),
+            description: k.description, category: k.category, 
+            image_urls: k.image_urls, bom_items: k.bom_items,
+            parent_id: k.id, is_archived: false
+        }]);
+        
+        loadAdminExtras();
+    };
+
+    window.saveSetting = async (key, val) => {
+        if(!val) return;
+        await client.from('business_settings').upsert({setting_key: key, setting_value: val});
+        alert("Setting saved successfully!");
+    };
+
+    window.addRider = async () => {
+        const name = prompt("Enter rider name:");
+        if(!name) return;
+        const phone = prompt("Enter phone number:");
+        if(!phone) return;
+        await client.from('riders').insert([{name, phone}]);
+        loadCommissioning();
+        loadAdminExtras();
+        loadTracking();
+    };
+
+    window.toggleRider = async (id, newStatus) => {
+        await client.from('riders').update({status: newStatus}).eq('id', id);
+        loadCommissioning();
+        loadAdminExtras();
+        loadTracking();
+    };
+
+    window.addStaff = async () => {
+        const email = prompt("Enter staff email:");
+        if(!email) return;
+        const name = prompt("Enter staff name:");
+        if(!name) return;
+        let role = prompt("Enter role (packer, dispatcher, or admin):", "packer");
+        if (!['packer', 'dispatcher', 'admin'].includes(role)) role = 'packer';
+        await client.from('staff_directory').insert([{email, name, role}]);
+        loadCommissioning();
+        loadAdminExtras();
+        loadTracking();
+    };
+
+    window.toggleStaff = async (id, newStatus) => {
+        await client.from('staff_directory').update({status: newStatus}).eq('id', id);
+        loadCommissioning();
+        loadAdminExtras();
+        loadTracking();
+    };
+</script>
+    <style>
+        :root { --bg: #f8fafc; --surface: #ffffff; --text: #0f172a; --accent: #2563eb; --border: #e2e8f0; --success: #16a34a; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
+        body { background: var(--bg); color: var(--text); }
+        header { padding: 16px 24px; background: #0f172a; color: #fff; display: flex; justify-content: space-between; align-items: center; }
+        header h1 { font-size: 18px; font-weight: 600; letter-spacing: 0.5px; }
+        .nav-links a { color: #cbd5e1; text-decoration: none; margin-left: 20px; font-size: 14px; }
+        .nav-links a:hover { color: #fff; }
+        
+        .container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
+        .dashboard-header { margin-bottom: 24px; }
+        .dashboard-header h2 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+        .dashboard-header p { color: #64748b; font-size: 14px; }
+        
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+        .card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); background: #f8fafc; font-weight: 600; }
+        
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 14px 20px; border-bottom: 1px solid var(--border); font-size: 14px; }
+        th { color: #64748b; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        tr:last-child td { border-bottom: none; }
+        
+        .badge { background: #fef08a; color: #854d0e; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+        .mpesa-ref { font-family: monospace; font-size: 14px; font-weight: 700; color: #0f172a; background: #f1f5f9; padding: 4px 8px; border-radius: 4px; }
+        
+        .btn-verify { background: var(--success); color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-verify:hover { background: #15803d; }
+        
+        .empty-state { text-align: center; padding: 40px 20px; color: #64748b; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Craft Atelier • Admin HQ</h1>
+    <div class="nav-links">
+        <a href="dev-launchpad.html">Launchpad</a>
+        <a href="#" id="logoutBtn">Logout</a>
+    </div>
+</header>
+
+<div class="container">
+    
+    <!-- ANALYTICS SCAFFOLD -->
+    <div class="dashboard-header">
+        <h2>Analytics & Reports</h2>
+        <p>High-level overview of fulfillment performance.</p>
+    </div>
+    <div style="display:flex; gap:15px; margin-bottom:40px;">
+        <div class="card" style="flex:1; padding:20px; text-align:center;">
+            <h3 style="color:#64748b; font-size:12px;">TODAY'S ORDERS</h3>
+            <div style="font-size:32px; font-weight:800; color:#0f172a; margin-top:10px;">--</div>
+        </div>
+        <div class="card" style="flex:1; padding:20px; text-align:center;">
+            <h3 style="color:#64748b; font-size:12px;">PENDING REVENUE</h3>
+            <div style="font-size:32px; font-weight:800; color:#0f172a; margin-top:10px;">KES --</div>
+        </div>
+        <div class="card" style="flex:1; padding:20px; text-align:center;">
+            <h3 style="color:#64748b; font-size:12px;">ON HOLD (ISSUES)</h3>
+            <div style="font-size:32px; font-weight:800; color:#ef4444; margin-top:10px;">--</div>
+        </div>
+    </div>
+
+    <div class="dashboard-header">
+        <h2>Financial Verification Queue</h2>
+        <p>Cross-check M-Pesa references against your business portal before releasing orders to the warehouse.</p>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Orders Pending Verification</div>
+        <div class="table-wrapper">
+            <table id="verificationTable">
+                <thead>
+                    <tr>
+                        <th>Order #</th>
+                        <th>Customer</th>
+                        <th>Expected Amount</th>
+                        <th>M-Pesa Ref</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="verificationList">
+                    <tr><td colspan="6" class="empty-state">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    
+    <div class="dashboard-header" style="margin-top: 60px;">
+        <h2>Order Tracking Board</h2>
+        <p>Monitor the real-time status of all orders across the fulfillment pipeline.</p>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="display: flex; gap: 10px; flex-wrap: wrap; background: #f8fafc; padding: 12px 20px;">
+            <button class="btn-verify filter-btn" style="background: #0f172a;" onclick="loadTracking('ALL')">All</button>
+            <button class="btn-verify filter-btn" style="background: #64748b;" onclick="loadTracking('QUEUED_FOR_PACKING')">Queued</button>
+            <button class="btn-verify filter-btn" style="background: #eab308; color: #422006;" onclick="loadTracking('PACKING_IN_PROGRESS')">Packing</button>
+            <button class="btn-verify filter-btn" style="background: #8b5cf6;" onclick="loadTracking('STAGED_FOR_DISPATCH')">Ready for Delivery</button>
+            <button class="btn-verify filter-btn" style="background: #3b82f6;" onclick="loadTracking('IN_TRANSIT')">In Transit</button>
+            <button class="btn-verify filter-btn" style="background: #10b981;" onclick="loadTracking('DELIVERED')">Delivered</button>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Order #</th>
+                        <th>Customer</th>
+                        <th>Kit Summary</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="trackingList">
+                    <tr><td colspan="5" class="empty-state">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="dashboard-header" style="margin-top: 60px;">
+        <h2>Commissioning & Fleet</h2>
+        <p>Manage your delivery riders and warehouse staff directory.</p>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Riders Fleet</span>
+            <button class="btn-verify" style="background: #2563eb;" onclick="addRider()">+ Add Rider</button>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody id="ridersList"><tr><td colspan="4" class="empty-state">Loading...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Staff Directory</span>
+            <button class="btn-verify" style="background: #2563eb;" onclick="addStaff()">+ Add Staff</button>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody id="staffList"><tr><td colspan="4" class="empty-state">Loading...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- CATALOG MANAGEMENT -->
+    <div class="dashboard-header" style="margin-top: 60px;">
+        <h2>Catalog & Inventory</h2>
+        <p>Manage product listings, pricing, and stock levels.</p>
+    </div>
+    <div class="card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Product Catalog</span>
+            <button class="btn-verify" style="background: #2563eb;" onclick="addKit()">+ Add New Kit</button>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>Kit Title</th><th>Price (KES)</th><th>Inventory</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody id="catalogList"><tr><td colspan="5" class="empty-state">Loading...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- BUSINESS SETTINGS -->
+    <div class="dashboard-header" style="margin-top: 60px;">
+        <h2>Business Settings</h2>
+        <p>Global configurations for the storefront and operations.</p>
+    </div>
+    <div class="card" style="padding: 20px;">
+        <div style="margin-bottom: 16px;">
+            <label style="display:block; font-size:12px; font-weight:600; color:#64748b; margin-bottom:6px;">M-PESA TILL / PAYBILL NUMBER</label>
+            <div style="display:flex; gap:10px;">
+                <input type="text" id="settingMpesa" style="padding:10px; border:1px solid #e2e8f0; border-radius:6px; flex:1;" placeholder="e.g. 123456">
+                <button class="btn-verify" style="background: #16a34a;" onclick="saveSetting('mpesa_till', document.getElementById('settingMpesa').value)">Save</button>
+            </div>
+            <p style="font-size:12px; color:#94a3b8; margin-top:6px;">This number is displayed to customers during the checkout process.</p>
+        </div>
+    </div>
+</div> <!-- End of container -->
+
+<script>
+    const SUPABASE_URL = "https://yjgskbdtnyzsmuzvnrsz.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqZ3NrYmR0bnl6c211enZucnN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NDQ5NzEsImV4cCI6MjEwNjUyMDk3MX0.elz2qyCCXBRFTCdbzqYqoiltkkmBALKrQhAv-I4SC7Q";
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        document.getElementById('logoutBtn').onclick = async () => {
+            await client.auth.signOut();
+            window.location.href = 'login.html';
+        };
+
+        loadVerificationQueue();
+        loadCommissioning();
+        loadAdminExtras();
+        loadTracking();
+    });
+
+    async function loadVerificationQueue() {
+        const { data, error } = await client
+            .from('orders')
+            .select('*')
+            .eq('status', 'PENDING_PAYMENT')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            alert("Error loading queue: " + error.message);
+            return;
+        }
+
+        const tbody = document.getElementById('verificationList');
+        tbody.innerHTML = '';
+
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No orders pending verification. All caught up! 🎉</td></tr>';
+            return;
+        }
+
+        data.forEach(order => {
+            // Calculate total expected from cart items
+            let total = 0;
+            if (order.cart_items && Array.isArray(order.cart_items)) {
+                total = order.cart_items.reduce((sum, item) => sum + item.price_cents, 0) / 100;
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>#${order.order_number}</strong></td>
+                <td>
+                    <div style="font-weight:600">${order.customer_name}</div>
+                    <div style="font-size:12px; color:#64748b">${order.customer_phone}</div>
+                </td>
+                <td style="font-weight: 700;">KES ${total.toLocaleString()}</td>
+                <td><span class="mpesa-ref">${order.payment_ref || 'N/A'}</span></td>
+                <td><span class="badge">Awaiting Finance</span></td>
+                <td>
+                    <button class="btn-verify" onclick="verifyOrder(${order.order_number})">Verify & Release</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function verifyOrder(orderId) {
+        const confirmed = confirm(`Are you sure you want to verify Order #${orderId} and release it to the warehouse?`);
+        if (!confirmed) return;
+
+        const { error } = await client
+            .from('orders')
+            .update({ status: 'QUEUED_FOR_PACKING' })
+            .eq('order_number', orderId);
+
+        if (error) {
+            alert("Error verifying order: " + error.message);
+        } else {
+            alert(`Order #${orderId} has been successfully verified and sent to Ops Packing!`);
+            loadVerificationQueue();
+        loadCommissioning();
+        loadAdminExtras();
+        loadTracking();
+        }
+    }
+
+    
+    async function loadCommissioning() {
+        // Load Riders
+        const { data: riders } = await client.from('riders').select('*').order('created_at', {ascending: false});
+        const rTbody = document.getElementById('ridersList');
+        rTbody.innerHTML = '';
+        (riders || []).forEach(r => {
+            const btn = r.status === 'active' 
+                ? `<button class="btn-verify" style="background: #dc2626;" onclick="toggleRider('${r.id}', 'inactive')">Suspend</button>`
+                : `<button class="btn-verify" style="background: #16a34a;" onclick="toggleRider('${r.id}', 'active')">Activate</button>`;
+            const badge = r.status === 'active' ? `<span class="badge" style="background:#dcfce7;color:#166534">ACTIVE</span>` : `<span class="badge" style="background:#fee2e2;color:#991b1b">INACTIVE</span>`;
+            rTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.phone}</td><td>${badge}</td><td>${btn}</td></tr>`;
+        });
+
+        // Load Staff
+        const { data: staff } = await client.from('staff_directory').select('*').order('created_at', {ascending: false});
+        const sTbody = document.getElementById('staffList');
+        sTbody.innerHTML = '';
+        if(!staff || staff.length === 0) sTbody.innerHTML = '<tr><td colspan="4" class="empty-state">No staff listed yet.</td></tr>';
+        (staff || []).forEach(s => {
+            const btn = s.status === 'active' 
+                ? `<button class="btn-verify" style="background: #dc2626;" onclick="toggleStaff('${s.id}', 'revoked')">Revoke</button>`
+                : `<button class="btn-verify" style="background: #16a34a;" onclick="toggleStaff('${s.id}', 'active')">Restore</button>`;
+            const badge = s.status === 'active' ? `<span class="badge" style="background:#dcfce7;color:#166534">ACTIVE</span>` : `<span class="badge" style="background:#fee2e2;color:#991b1b">REVOKED</span>`;
+            sTbody.innerHTML += `<tr><td>${s.email}</td><td>${s.name}</td><td><strong style="text-transform:uppercase;font-size:11px;color:#64748b;">${s.role}</strong></td><td>${badge}</td><td>${btn}</td></tr>`;
+        });
+    }
+
+    
+        
+    window.markDelivered = async (id, correctPin) => {
+        const pin = prompt("Enter the 4-digit Delivery PIN provided by the customer:");
+        if (!pin) return;
+        
+        if (pin === correctPin) {
+            const { error } = await client.from('orders').update({status: 'DELIVERED'}).eq('id', id);
+            
+            await client.from('order_audit_logs').insert([{
+                order_id: id, old_status: 'IN_TRANSIT', new_status: 'DELIVERED',
+                changed_by: 'Admin / Rider App', notes: 'Delivery confirmed with valid PIN.'
+            }]);
+            
+            if(!error) {
+                alert("Order successfully marked as DELIVERED!");
+                loadTracking('ALL');
+            }
+        } else {
+            alert("❌ Invalid PIN. Please confirm the PIN with the customer.");
+        }
+    };
+
+    window.loadTracking = async (statusFilter = 'ALL') => {
+        let query = client.from('orders').select('*').order('created_at', {ascending: false}).limit(50);
+        
+        if (statusFilter !== 'ALL') {
+            query = query.eq('status', statusFilter);
+        }
+
+        const { data, error } = await query;
+        const tbody = document.getElementById('trackingList');
+        tbody.innerHTML = '';
+        
+        if (error) {
+            tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Error: ${error.message}</td></tr>`;
+            return;
+        }
+        
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No orders found for this filter.</td></tr>';
+            return;
+        }
+
+        data.forEach(order => {
+            const date = new Date(order.created_at).toLocaleDateString();
+            
+            let badgeStyle = "background: #f1f5f9; color: #475569;";
+            if(order.status === 'PENDING_PAYMENT') badgeStyle = "background: #fef08a; color: #854d0e;";
+            if(order.status === 'QUEUED_FOR_PACKING') badgeStyle = "background: #e2e8f0; color: #334155;";
+            if(order.status === 'PACKING_IN_PROGRESS') badgeStyle = "background: #fef08a; color: #854d0e;";
+            if(order.status === 'STAGED_FOR_DISPATCH') badgeStyle = "background: #ede9fe; color: #5b21b6;";
+            if(order.status === 'IN_TRANSIT') badgeStyle = "background: #dbeafe; color: #1e40af;";
+            if(order.status === 'DELIVERED') badgeStyle = "background: #dcfce7; color: #166534;";
+            
+            const badge = `<span class="badge" style="${badgeStyle}">${order.status.replace(/_/g, ' ')}</span>`;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>#${order.order_number}</strong></td>
+                    <td>${order.customer_name}<br><span style="font-size:12px;color:#64748b">${order.customer_phone}</span></td>
+                    <td>${order.kit_name}</td>
+                    <td>${date}</td>
+                    <td>
+                        ${badge}
+                        ${order.status === 'IN_TRANSIT' ? `<br><button class="btn-verify" style="margin-top:6px; background:#10b981; font-size:10px; padding:2px 6px;" onclick="markDelivered('${order.id}', '${order.delivery_pin}')">Complete Delivery</button>` : ''}
+                    </td>
+                </tr>
+            `;
+        });
+    };
+
+    // --- CATALOG & SETTINGS ---
+    async function loadAdminExtras() {
+        // Load Settings
+        const { data: settings } = await client.from('business_settings').select('*');
+        if(settings) {
+            const till = settings.find(s => s.setting_key === 'mpesa_till');
+            if(till) document.getElementById('settingMpesa').value = till.setting_value;
+        }
+
+        // Load Catalog
+        const { data: kits } = await client.from('kits').select('*').eq('is_archived', false).order('title');
+        const cTbody = document.getElementById('catalogList');
+        cTbody.innerHTML = '';
+        (kits || []).forEach(k => {
+            const stockBadge = k.inventory_count > 0 
+                ? `<span class="badge" style="background:#dcfce7;color:#166534">IN STOCK</span>` 
+                : `<span class="badge" style="background:#fee2e2;color:#991b1b">OUT OF STOCK</span>`;
+            
+            cTbody.innerHTML += `
+                <tr>
+                    <td><strong>${k.title}</strong><br><small style="color:#64748b;">/${k.slug}</small></td>
+                    <td>KES ${(k.price_cents / 100).toLocaleString()}</td>
+                    <td>${k.inventory_count} units</td>
+                    <td>${stockBadge}</td>
+                    <td>
+                        <button class="btn-verify" style="background:#64748b; padding:4px 8px; font-size:12px;" onclick='editKit(${JSON.stringify(k)})'>Edit</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    window.addKit = async () => {
+        const choice = prompt("Enter '1' to add a Single Kit manually.\nEnter '2' to Bulk Import kits via JSON array.");
+        
+        if (choice === '1') {
+            const title = prompt("Enter new kit title:");
+            if(!title) return;
+            const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            const price = prompt("Enter price in KES (e.g. 2500):", "2500");
+            if(!price) return;
+            const stock = prompt("Enter initial inventory count:", "10");
+            
+            await client.from('kits').insert([{
+                title, slug, price_cents: parseInt(price)*100, inventory_count: parseInt(stock),
+                description: 'New craft kit', category: 'DIY Kit', image_urls: ['https://via.placeholder.com/400'], bom_items: [], is_archived: false
+            }]);
+            loadAdminExtras();
+        } else if (choice === '2') {
+            const jsonStr = prompt("Paste your JSON array of kits here:\nExample: [{title: 'A', price_cents: 1000}, ...]");
+            if(!jsonStr) return;
+            try {
+                let parsed = JSON.parse(jsonStr);
+                if(!Array.isArray(parsed)) parsed = [parsed];
+                
+                const toInsert = parsed.map(k => ({
+                    title: k.title || 'Untitled',
+                    slug: (k.title || 'Untitled').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                    price_cents: k.price_cents || 0,
+                    inventory_count: k.inventory_count || 0,
+                    description: k.description || '',
+                    category: k.category || 'DIY Kit',
+                    image_urls: k.image_urls || [],
+                    bom_items: k.bom_items || [],
+                    is_archived: false
+                }));
+                
+                const { error } = await client.from('kits').insert(toInsert);
+                if(error) alert("Import Error: " + error.message);
+                else alert("Successfully imported " + toInsert.length + " kits!");
+                
+                loadAdminExtras();
+            } catch (err) {
+                alert("Invalid JSON format. Please try again.");
+            }
+        }
+    };
+
+    window.editKit = async (k) => {
+        const stock = prompt(`Update inventory for ${k.title}:`, k.inventory_count);
+        if(stock === null) return;
+        const price = prompt(`Update price (KES) for ${k.title}:`, k.price_cents / 100);
+        if(price === null) return;
+
+        // 1. Archive the old record
+        await client.from('kits').update({ is_archived: true }).eq('id', k.id);
+        
+        // 2. Insert the new record pointing to the old one as parent
+        await client.from('kits').insert([{
+            title: k.title, slug: k.slug,
+            price_cents: parseInt(price)*100, inventory_count: parseInt(stock),
+            description: k.description, category: k.category, 
+            image_urls: k.image_urls, bom_items: k.bom_items,
+            parent_id: k.id, is_archived: false
+        }]);
+        
+        loadAdminExtras();
+    };
+
+    window.saveSetting = async (key, val) => {
+        if(!val) return;
+        await client.from('business_settings').upsert({setting_key: key, setting_value: val});
+        alert("Setting saved successfully!");
+    };
+
+    window.addRider = async () => {
+        const name = prompt("Enter rider name:");
+        if(!name) return;
+        const phone = prompt("Enter phone number:");
+        if(!phone) return;
+        await client.from('riders').insert([{name, phone}]);
+        loadCommissioning();
+        loadAdminExtras();
+        loadTracking();
+    };
+
+    window.toggleRider = async (id, newStatus) => {
+        await client.from('riders').update({status: newStatus}).eq('id', id);
+        loadCommissioning();
+        loadAdminExtras();
+        loadTracking();
+    };
+
+    window.addStaff = async () => {
+        const email = prompt("Enter staff email:");
+        if(!email) return;
+        const name = prompt("Enter staff name:");
+        if(!name) return;
+        let role = prompt("Enter role (packer, dispatcher, or admin):", "packer");
+        if (!['packer', 'dispatcher', 'admin'].includes(role)) role = 'packer';
+        await client.from('staff_directory').insert([{email, name, role}]);
+        loadCommissioning();
+        loadAdminExtras();
+        loadTracking();
+    };
+
+    window.toggleStaff = async (id, newStatus) => {
+        await client.from('staff_directory').update({status: newStatus}).eq('id', id);
+        loadCommissioning();
+        loadAdminExtras();
+        loadTracking();
+    };
+</script>
+</body>
+</html>

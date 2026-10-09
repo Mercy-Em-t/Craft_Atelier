@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8">
+ <title>Accordion Unboxing & Row 1 Guide</title>
+ <style>
+ @page {
+ size: A4 landscape;
+ margin: 8mm;
+ }
+ * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+ body { background: #f4efe6; color: #1f2937; display: flex; justify-content: center; padding: 20px; }
+ .print-sheet { width: 281mm; height: 194mm; background: #ffffff; border: 1px solid #d1d5db; display: grid; grid-template-columns: 1fr 1fr 1fr; position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.08); }
+ /* Fold guides */
+ .panel { padding: 22mm 14mm 16mm 14mm; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
+ .panel:not(:last-child)::after { content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 1px; border-right: 1px dashed #d1d5db; }
+ .fold-mark { position: absolute; top: 4mm; right: -8mm; font-size: 8px; color: #9ca3af; letter-spacing: 0.5px; text-transform: uppercase; }
+ /* Panel Content Styling */
+ .brand-eyebrow { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #92400e; font-weight: 700; margin-bottom: 6px; }
+ h1 { font-size: 20px; font-weight: 800; line-height: 1.2; color: #111827; margin-bottom: 12px; }
+ h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #374151; margin-bottom: 8px; border-bottom: 1.5px solid #f3f4f6; padding-bottom: 4px; }
+ p, li { font-size: 11px; line-height: 1.55; color: #4b5563; }
+ ul { list-style: none; margin-top: 8px; }
+ ul li { margin-bottom: 6px; padding-left: 14px; position: relative; }
+ ul li::before { content: "•"; position: absolute; left: 0; color: #d97706; font-weight: bold; }
+ .callout-box { background: #fef3c7; border-left: 3px solid #d97706; padding: 10px; border-radius: 4px; margin: 12px 0; }
+ .callout-box strong { display: block; color: #92400e; font-size: 10px; text-transform: uppercase; margin-bottom: 3px; }
+ .stitch-step { display: flex; align-items: flex-start; margin-bottom: 10px; }
+ .stitch-num { background: #111827; color: #fff; font-size: 9px; font-weight: 800; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 8px; flex-shrink: 0; }
+ .qr-placeholder { border: 1.5px dashed #9ca3af; border-radius: 8px; padding: 12px; text-align: center; background: #f9fafb; }
+ .qr-box { width: 52px; height: 52px; margin: 0 auto 6px; background: #111827; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 8px; font-weight: bold; }
+ @media print { body { background: transparent; padding: 0; } .print-sheet { box-shadow: none; border: none; width: 100%; height: 100%; } }
+ </style>
+</head>
+<body>
+ <div class="print-sheet">
+ <!-- PANEL 1: UNBOXING & KIT ARCHITECTURE -->
+ <div class="panel">
+ <div>
+ <div class="brand-eyebrow">Craft Atelier • Foundation Series</div>
+ <h1>"Thanks, I made it."</h1>
+ <p>You did not purchase a completed bag—you bought the personal agency and pride of building it yourself.</p>
+ <div class="callout-box">
+ <strong>Physical BOM Verification</strong>
+ <p>Every piece in this box has been pre-measured and inspected before sealing.</p>
+ </div>
+ <h2>Inside Your Box</h2>
+ <ul>
+ <li><strong>Zero-Fray Tube Yarn:</strong> Knitted cotton shell that never splits or tears on your hook.</li>
+ <li><strong>Ergonomic Hook:</strong> Rubberized grip calibrated to prevent hand fatigue.</li>
+ <li><strong>Notions Pouch:</strong> Darning needle + 5 neon safety locking stitch markers.</li>
+ <li><strong>Pre-Started Base:</strong> The hardest 15 minutes of crochet done for you.</li>
+ </ul>
+ </div>
+ <div style="font-size: 9px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 6px;">
+ Designed & Assembled in Nairobi • Box Series 01
+ </div>
+ <span class="fold-mark">Fold Line 1</span>
+ </div>
+ <!-- PANEL 2: THE ROW 1 BREAKTHROUGH -->
+ <div class="panel">
+ <div>
+ <div class="brand-eyebrow">Zero Frustration Engineering</div>
+ <h1>The Pre-Started Piece</h1>
+ <p>Beginners usually quit during the foundation chain because stitches curl and tighten. <strong>We already did the hard part for you.</strong></p>
+ <div class="callout-box">
+ <strong>Do Not Pull The Loose Tail!</strong>
+ <p>Your working yarn is securely clipped into the neon marker. Do not tug the short tail.</p>
+ </div>
+ <h2>Executing Row 1 (Single Crochet)</h2>
+ <div class="stitch-step">
+ <div class="stitch-num">1</div>
+ <p><strong>Insert Hook:</strong> Slide hook tip under both loops of the next open stitch along the top ridge.</p>
+ </div>
+ <div class="stitch-step">
+ <div class="stitch-num">2</div>
+ <p><strong>Yarn Over:</strong> Catch the yarn with the hook beak and pull it through (you now have 2 loops on hook).</p>
+ </div>
+ <div class="stitch-step">
+ <div class="stitch-num">3</div>
+ <p><strong>Complete Stitch:</strong> Catch yarn again and pull through both loops smoothly. One stitch done!</p>
+ </div>
+ </div>
+ <p style="font-size: 10px; font-style: italic; color: #6b7280;">
+ "Keep your loops loose enough to slide along the silver shaft of the hook."
+ </p>
+ <span class="fold-mark">Fold Line 2</span>
+ </div>
+ <!-- PANEL 3: TROUBLESHOOTING & EMERGENCY SUPPORT -->
+ <div class="panel">
+ <div>
+ <div class="brand-eyebrow">Direct Maker Support</div>
+ <h1>Stuck? Don't Unravel.</h1>
+ <p>Every maker makes tight stitches on day one. If your work feels jammed or curved, do not pull your stitches out.</p>
+ <div style="margin: 16px 0;">
+ <h2>Golden Tension Check</h2>
+ <p><strong>Too tight?</strong> You are pulling the working yarn with your index finger. Relax your grip and let the hook do the sizing.</p>
+ <p style="margin-top: 6px;"><strong>Lost count?</strong> Count the "V" shapes along the top rim. Each "V" is one stitch.</p>
+ </div>
+ <div class="qr-placeholder">
+ <div class="qr-box">SCAN ME</div>
+ <div style="font-size: 11px; font-weight: 700; color: #111827;">Watch Row 1 In Macro</div>
+ <p style="font-size: 9px; color: #6b7280; margin-top: 2px;">90-second silent top-down video loop of the exact motion.</p>
+ </div>
+ </div>
+ <div style="background: #f3f4f6; padding: 8px 10px; border-radius: 6px; font-size: 9px; color: #374151;">
+ <strong>Need Human Backup?</strong> WhatsApp our operations line with a photo of your hook. We answer within 15 minutes.
+ </div>
+ </div>
+ </div>
+</body>
+</html>

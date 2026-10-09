@@ -1,0 +1,13 @@
+{
+  "name": "craft-club",
+  "version": "1.0.0",
+  "description": "Zero-Burnout DIY Kit Fulfillment Pipeline",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
