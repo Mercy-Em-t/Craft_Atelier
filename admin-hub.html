@@ -35,6 +35,41 @@
 
     
         
+    
+    window.resolveIssue = async (id) => {
+        const confirmResolve = confirm("Have you secured the missing items? This will send the order back to the warehouse floor for packing.");
+        if(!confirmResolve) return;
+        
+        const staffEmail = (await client.auth.getUser()).data.user.email;
+        await client.from('orders').update({status: 'QUEUED_FOR_PACKING', delivery_notes: 'ISSUE RESOLVED'}).eq('id', id);
+        
+        await client.from('order_audit_logs').insert([{
+            order_id: id, old_status: 'ON_HOLD', new_status: 'QUEUED_FOR_PACKING',
+            changed_by: 'Admin: ' + staffEmail, notes: 'Admin resolved stock issue'
+        }]);
+        
+        alert("Order successfully re-queued for packing!");
+        loadTracking('ALL');
+        loadAnalytics();
+    };
+
+    window.cancelOrder = async (id) => {
+        const reason = prompt("Enter reason for cancellation / refund:");
+        if(!reason) return;
+        
+        const staffEmail = (await client.auth.getUser()).data.user.email;
+        await client.from('orders').update({status: 'CANCELLED', delivery_notes: 'CANCELLED: ' + reason}).eq('id', id);
+        
+        await client.from('order_audit_logs').insert([{
+            order_id: id, old_status: 'ON_HOLD', new_status: 'CANCELLED',
+            changed_by: 'Admin: ' + staffEmail, notes: 'Order Cancelled: ' + reason
+        }]);
+        
+        alert("Order Cancelled.");
+        loadTracking('ALL');
+        loadAnalytics();
+    };
+
     window.markDelivered = async (id, correctPin) => {
         const pin = prompt("Enter the 4-digit Delivery PIN provided by the customer:");
         if (!pin) return;
@@ -99,6 +134,10 @@
                     <td>
                         ${badge}
                         ${order.status === 'IN_TRANSIT' ? `<br><button class="btn-verify" style="margin-top:6px; background:#10b981; font-size:10px; padding:2px 6px;" onclick="markDelivered('${order.id}', '${order.delivery_pin}')">Complete Delivery</button>` : ''}
+                        ${order.status === 'ON_HOLD' ? `<br>
+                            <button class="btn-verify" style="margin-top:6px; background:#3b82f6; font-size:10px; padding:2px 6px;" onclick="resolveIssue('${order.id}')">Resolve & Re-Queue</button>
+                            <button class="btn-verify" style="margin-top:4px; background:#ef4444; font-size:10px; padding:2px 6px;" onclick="cancelOrder('${order.id}')">Cancel Order</button>
+                        ` : ''}
                     </td>
                 </tr>
             `;
@@ -300,15 +339,15 @@
     <div style="display:flex; gap:15px; margin-bottom:40px;">
         <div class="card" style="flex:1; padding:20px; text-align:center;">
             <h3 style="color:#64748b; font-size:12px;">TODAY'S ORDERS</h3>
-            <div style="font-size:32px; font-weight:800; color:#0f172a; margin-top:10px;">--</div>
+            <div id="statTodayOrders" style="font-size:32px; font-weight:800; color:#0f172a; margin-top:10px;">--</div>
         </div>
         <div class="card" style="flex:1; padding:20px; text-align:center;">
             <h3 style="color:#64748b; font-size:12px;">PENDING REVENUE</h3>
-            <div style="font-size:32px; font-weight:800; color:#0f172a; margin-top:10px;">KES --</div>
+            <div id="statPendingRev" style="font-size:32px; font-weight:800; color:#0f172a; margin-top:10px;">KES --</div>
         </div>
         <div class="card" style="flex:1; padding:20px; text-align:center;">
             <h3 style="color:#64748b; font-size:12px;">ON HOLD (ISSUES)</h3>
-            <div style="font-size:32px; font-weight:800; color:#ef4444; margin-top:10px;">--</div>
+            <div id="statOnHold" style="font-size:32px; font-weight:800; color:#ef4444; margin-top:10px;">--</div>
         </div>
     </div>
 
@@ -555,6 +594,41 @@
 
     
         
+    
+    window.resolveIssue = async (id) => {
+        const confirmResolve = confirm("Have you secured the missing items? This will send the order back to the warehouse floor for packing.");
+        if(!confirmResolve) return;
+        
+        const staffEmail = (await client.auth.getUser()).data.user.email;
+        await client.from('orders').update({status: 'QUEUED_FOR_PACKING', delivery_notes: 'ISSUE RESOLVED'}).eq('id', id);
+        
+        await client.from('order_audit_logs').insert([{
+            order_id: id, old_status: 'ON_HOLD', new_status: 'QUEUED_FOR_PACKING',
+            changed_by: 'Admin: ' + staffEmail, notes: 'Admin resolved stock issue'
+        }]);
+        
+        alert("Order successfully re-queued for packing!");
+        loadTracking('ALL');
+        loadAnalytics();
+    };
+
+    window.cancelOrder = async (id) => {
+        const reason = prompt("Enter reason for cancellation / refund:");
+        if(!reason) return;
+        
+        const staffEmail = (await client.auth.getUser()).data.user.email;
+        await client.from('orders').update({status: 'CANCELLED', delivery_notes: 'CANCELLED: ' + reason}).eq('id', id);
+        
+        await client.from('order_audit_logs').insert([{
+            order_id: id, old_status: 'ON_HOLD', new_status: 'CANCELLED',
+            changed_by: 'Admin: ' + staffEmail, notes: 'Order Cancelled: ' + reason
+        }]);
+        
+        alert("Order Cancelled.");
+        loadTracking('ALL');
+        loadAnalytics();
+    };
+
     window.markDelivered = async (id, correctPin) => {
         const pin = prompt("Enter the 4-digit Delivery PIN provided by the customer:");
         if (!pin) return;
@@ -619,6 +693,10 @@
                     <td>
                         ${badge}
                         ${order.status === 'IN_TRANSIT' ? `<br><button class="btn-verify" style="margin-top:6px; background:#10b981; font-size:10px; padding:2px 6px;" onclick="markDelivered('${order.id}', '${order.delivery_pin}')">Complete Delivery</button>` : ''}
+                        ${order.status === 'ON_HOLD' ? `<br>
+                            <button class="btn-verify" style="margin-top:6px; background:#3b82f6; font-size:10px; padding:2px 6px;" onclick="resolveIssue('${order.id}')">Resolve & Re-Queue</button>
+                            <button class="btn-verify" style="margin-top:4px; background:#ef4444; font-size:10px; padding:2px 6px;" onclick="cancelOrder('${order.id}')">Cancel Order</button>
+                        ` : ''}
                     </td>
                 </tr>
             `;

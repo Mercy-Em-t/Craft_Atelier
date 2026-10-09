@@ -67,6 +67,8 @@
  .mpesa-box h3 { color: #166534; font-size: 24px; margin-bottom: 4px; }
  .mpesa-box p { color: #15803d; font-size: 14px; }
  </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
@@ -162,13 +164,28 @@
  </p>
  <div class="form-group">
  <label>M-Pesa Confirmation Code</label>
- <input type="text" id="mpesaCode" placeholder="e.g. QKZ9A1B2C3" style="text-transform: uppercase;">
+ <input type="text" id="mpesaCode" placeholder="e.g. QKZ9A1B2C3" style="text-transform: uppercase;" oninput="validateMpesa()">
+<div id="mpesaError" style="color:#ef4444; font-size:12px; margin-top:5px; display:none;">Must be exactly 10 alphanumeric characters.</div>
  </div>
  <button class="btn btn-success" id="submitOrderBtn" onclick="submitOrder()">Confirm & Place Order</button>
  </div>
 </div>
 
-<script>
+
+    <!-- MAP MODAL -->
+    <div class="modal-overlay" id="mapModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:200;">
+        <div style="background:white; padding:20px; border-radius:8px; width:90%; max-width:500px;">
+            <h3 style="margin-bottom:10px;">Pin Delivery Location</h3>
+            <p style="font-size:12px; color:#64748b; margin-bottom:10px;">Drag the marker or click on the map to pin the exact delivery drop-off point.</p>
+            <div id="map" style="width:100%; height:300px; background:#e2e8f0; margin-bottom:15px; border-radius:4px; z-index: 10;"></div>
+            <div style="display:flex; justify-content:space-between; gap:10px;">
+                <button class="btn" style="background:#e2e8f0; color:#475569; flex:1;" onclick="document.getElementById('mapModal').style.display='none'">Cancel</button>
+                <button class="btn btn-blue" style="flex:2;" onclick="confirmMapPin()">Confirm Pin</button>
+            </div>
+        </div>
+    </div>
+
+  <script>
  const SUPABASE_URL = "https://yjgskbdtnyzsmuzvnrsz.supabase.co";
  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqZ3NrYmR0bnl6c211enZucnN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NDQ5NzEsImV4cCI6MjEwNjUyMDk3MX0.elz2qyCCXBRFTCdbzqYqoiltkkmBALKrQhAv-I4SC7Q";
  const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -284,7 +301,56 @@ let cart = [];
  document.getElementById('pickupGroup').style.display = type === 'pickup' ? 'block' : 'none';
  }
 
- function proceedToPayment() {
+ 
+   
+   let map, marker, selectedLatLng;
+   
+   function openMapModal() {
+       document.getElementById('mapModal').style.display = 'flex';
+       
+       if (!map) {
+           // Center on Nairobi by default
+           map = L.map('map').setView([-1.2921, 36.8219], 12);
+           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+           marker = L.marker([-1.2921, 36.8219], {draggable: true}).addTo(map);
+           
+           // If they allow GPS, jump to their current location
+           if (navigator.geolocation) {
+               navigator.geolocation.getCurrentPosition((pos) => {
+                   const lat = pos.coords.latitude;
+                   const lng = pos.coords.longitude;
+                   map.setView([lat, lng], 15);
+                   marker.setLatLng([lat, lng]);
+                   selectedLatLng = marker.getLatLng();
+               }, () => { console.log("GPS denied, defaulting to Nairobi."); });
+           }
+           
+           marker.on('dragend', function(e) { selectedLatLng = marker.getLatLng(); });
+           map.on('click', function(e) {
+               marker.setLatLng(e.latlng);
+               selectedLatLng = e.latlng;
+           });
+       }
+       
+       selectedLatLng = marker.getLatLng();
+       
+       // Force Leaflet to recalculate size since it was initially hidden in a display:none div
+       setTimeout(() => { map.invalidateSize(); }, 200);
+   }
+
+   function confirmMapPin() {
+       const addrInput = document.getElementById('delAddress');
+       const originalValue = addrInput.value;
+       const mapsLink = `https://maps.google.com/?q=${selectedLatLng.lat},${selectedLatLng.lng}`;
+       
+       if (originalValue.trim().length > 0 && originalValue.indexOf('maps.google') === -1) {
+           addrInput.value = originalValue.trim() + " - " + mapsLink;
+       } else {
+           addrInput.value = mapsLink;
+       }
+       document.getElementById('mapModal').style.display = 'none';
+   }
+function proceedToPayment() {
  const name = document.getElementById('custName').value;
  const phone = document.getElementById('custPhone').value;
  if (!name || !phone) return alert("Please fill name and phone.");
@@ -294,20 +360,48 @@ let cart = [];
  document.getElementById('mpesaModal').style.display = 'flex';
  }
 
- function closeModals() {
+ 
+   function validateMpesa() {
+       const mpesa = document.getElementById('mpesaCode').value.trim().toUpperCase();
+       const btn = document.getElementById('submitOrderBtn');
+       const err = document.getElementById('mpesaError');
+       const mpesaRegex = /^[A-Z0-9]{10}$/;
+       
+       if (mpesa.length === 0) {
+           err.style.display = 'none';
+           btn.disabled = false;
+       } else if (!mpesaRegex.test(mpesa)) {
+           err.style.display = 'block';
+           btn.disabled = true;
+       } else {
+           err.style.display = 'none';
+           btn.disabled = false;
+       }
+   }
+
+   function closeModals() {
  document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
  }
 
  async function submitOrder() {
- const mpesa = document.getElementById('mpesaCode').value.trim();
- if (!mpesa) return alert("Please enter M-Pesa code.");
- 
- const name = document.getElementById('custName').value;
- const phone = document.getElementById('custPhone').value;
- const type = document.getElementById('delType').value;
+   let btn = document.getElementById('submitOrderBtn');
+   
+   const mpesa = document.getElementById('mpesaCode').value.trim().toUpperCase();
+   const mpesaRegex = /^[A-Z0-9]{10}$/;
+   if (!mpesaRegex.test(mpesa)) {
+       alert("Invalid M-Pesa Code. It must be exactly 10 alphanumeric characters.");
+       if (btn) { btn.disabled = false; btn.textContent = "Complete Order"; }
+       return;
+   }
+   
+   const name = document.getElementById('custName').value;
+   const phone = document.getElementById('custPhone').value.trim();
+   
+
+   const type = document.getElementById('delType').value;
  const addr = type === 'pickup' ? document.getElementById('pickupPoint').value : document.getElementById('delAddress').value;
  
- const btn = document.getElementById('submitOrderBtn');
+ btn = document.getElementById('submitOrderBtn');
  btn.disabled = true;
  btn.textContent = "Processing...";
  

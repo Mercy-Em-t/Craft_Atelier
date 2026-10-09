@@ -1,0 +1,264 @@
+﻿import os
+
+html_content = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ops Hub | Craft Atelier</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root { --blue: #3b82f6; --dark: #0f172a; --gray: #f1f5f9; --green: #10b981; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #f8fafc; color: var(--dark); padding-bottom: 50px; }
+        .header { background: var(--dark); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .tabs { display: flex; background: white; border-bottom: 1px solid #e2e8f0; }
+        .tab { flex: 1; padding: 15px; text-align: center; font-weight: bold; cursor: pointer; color: #64748b; border-bottom: 3px solid transparent; }
+        .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+        .container { padding: 20px; max-width: 800px; margin: 0 auto; }
+        .grid { display: grid; gap: 15px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+        .card { background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .card-header { font-size: 12px; color: #64748b; display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .card-title { font-weight: bold; font-size: 16px; margin-bottom: 5px; }
+        .btn { display: inline-block; padding: 8px 12px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; text-align: center; width: 100%; margin-top: 10px; }
+        .btn-blue { background: var(--blue); color: white; }
+        .btn-green { background: var(--green); color: white; }
+        .btn-red { background: #ef4444; color: white; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        /* Modal */
+        .modal-bg { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; padding:20px; z-index:100;}
+        .modal { background:white; padding:20px; border-radius:8px; width:100%; max-width:400px; max-height:90vh; overflow-y:auto; }
+        .check-item { display:flex; align-items:center; gap:10px; padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:8px; }
+        .batch-bar { background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
+        .dispatch-list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <div style="font-size:18px; font-weight:bold;">Craft Atelier Ops</div>
+            <div id="staffLabel" style="font-size:12px; color:#cbd5e1;">Loading...</div>
+        </div>
+        <button onclick="logout()" style="background:none; border:1px solid #cbd5e1; color:white; padding:4px 8px; border-radius:4px; cursor:pointer;">Logout</button>
+    </div>
+
+    <div class="tabs" id="tabBar">
+        <div class="tab active" id="tab-queue" onclick="switchTab('queue')">Packing Queue (<span id="countQ">0</span>)</div>
+        <div class="tab" id="tab-dispatch" onclick="switchTab('dispatch')">Dispatch Hub (<span id="countD">0</span>)</div>
+    </div>
+
+    <div class="container">
+        <!-- QUEUE VIEW -->
+        <div id="view-queue" class="grid"></div>
+
+        <!-- DISPATCH VIEW -->
+        <div id="view-dispatch" style="display:none;">
+            <div class="batch-bar">
+                <input type="checkbox" id="selectAll" onclick="toggleAllDispatch()">
+                <label for="selectAll" style="font-weight:bold; flex:1;">Select All</label>
+                <select id="riderSelect" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1;"></select>
+                <button class="btn btn-blue" style="width:auto; margin-top:0;" onclick="batchDispatch()">Dispatch Selected</button>
+            </div>
+            <div id="dispatch-list"></div>
+        </div>
+    </div>
+
+    <!-- PACKING MODAL -->
+    <div class="modal-bg" id="packingModal">
+        <div class="modal">
+            <h2 id="packTitle">Pack Order</h2>
+            <p id="packDetails" style="font-size:12px; color:#64748b; margin-bottom:15px;"></p>
+            <div id="bomList">
+                <label class="check-item"><input type="checkbox" class="bom-check" onchange="checkBom()"><span>Curated Yarn Bundles</span></label>
+                <label class="check-item"><input type="checkbox" class="bom-check" onchange="checkBom()"><span>Ergonomic Hook</span></label>
+                <label class="check-item"><input type="checkbox" class="bom-check" onchange="checkBom()"><span>Notions Pack</span></label>
+                <label class="check-item"><input type="checkbox" class="bom-check" onchange="checkBom()"><span>Starter Piece</span></label>
+                <label class="check-item"><input type="checkbox" class="bom-check" onchange="checkBom()"><span>Accordion Guide</span></label>
+                <label class="check-item"><input type="checkbox" checked><span>🎁 Surprise Charm</span></label>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="btn btn-green" id="sealBtn" disabled onclick="sealOrder()">Verify & Seal Box</button>
+                <button class="btn btn-red" onclick="reportIssue()">Report Issue</button>
+            </div>
+            <button class="btn" style="background:#e2e8f0; color:#475569;" onclick="closeModal('packingModal')">Cancel</button>
+        </div>
+    </div>
+
+    <!-- NOTIFICATION MODAL -->
+    <div class="modal-bg" id="notifyModal">
+        <div class="modal">
+            <h2>🎉 Orders Dispatched!</h2>
+            <p style="font-size:12px; color:#64748b; margin-bottom:15px;">Please notify the customers so they can receive their Delivery PINs.</p>
+            <div id="notifyList"></div>
+            <button class="btn btn-blue" onclick="closeModal('notifyModal'); loadData();">Done</button>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://yjgskbdtnyzsmuzvnrsz.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqZ3NrYmR0bnl6c211enZucnN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NDQ5NzEsImV4cCI6MjEwNjUyMDk3MX0.elz2qyCCXBRFTCdbzqYqoiltkkmBALKrQhAv-I4SC7Q";
+        const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let currentUser = null;
+        let activePackOrderId = null;
+        let ordersData = [];
+
+        async function init() {
+            const { data: { session } } = await client.auth.getSession();
+            if (!session) { window.location.href = 'login.html'; return; }
+            
+            const { data } = await client.from('staff_directory').select('*').eq('email', session.user.email).maybeSingle();
+            currentUser = data;
+            if(!currentUser || currentUser.status !== 'active') { alert("Access Denied"); window.location.href = 'login.html'; return; }
+            
+            document.getElementById('staffLabel').textContent = `${currentUser.name} (${currentUser.role.toUpperCase()})`;
+
+            // RBAC Tab visibility
+            if(currentUser.role === 'packer') { document.getElementById('tab-dispatch').style.display = 'none'; }
+            if(currentUser.role === 'dispatcher') { 
+                document.getElementById('tab-queue').style.display = 'none'; 
+                switchTab('dispatch');
+            }
+
+            loadData();
+            loadRiders();
+
+            // Realtime
+            client.channel('ops-orders').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
+                loadData();
+            }).subscribe();
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            document.getElementById('view-queue').style.display = tab === 'queue' ? 'grid' : 'none';
+            document.getElementById('view-dispatch').style.display = tab === 'dispatch' ? 'block' : 'none';
+        }
+
+        async function loadData() {
+            const { data } = await client.from('orders').select('*').in('status', ['QUEUED_FOR_PACKING', 'PACKING_IN_PROGRESS', 'STAGED_FOR_DISPATCH']).order('created_at', { ascending: true });
+            ordersData = data || [];
+            
+            const queue = ordersData.filter(o => o.status === 'QUEUED_FOR_PACKING' || o.status === 'PACKING_IN_PROGRESS');
+            const dispatch = ordersData.filter(o => o.status === 'STAGED_FOR_DISPATCH');
+
+            document.getElementById('countQ').textContent = queue.length;
+            document.getElementById('countD').textContent = dispatch.length;
+
+            // Render Queue Grid
+            document.getElementById('view-queue').innerHTML = queue.map(o => `
+                <div class="card">
+                    <div class="card-header"><span>Order #${o.order_number}</span><span>${o.status.replace(/_/g, ' ')}</span></div>
+                    <div class="card-title">${o.kit_name}</div>
+                    <div style="font-size:12px; color:#64748b; margin-bottom:10px;">For: ${o.customer_name}</div>
+                    <button class="btn btn-blue" onclick="openPacking('${o.id}')">Pack Order</button>
+                </div>
+            `).join('') || '<div style="grid-column:1/-1; text-align:center; padding:40px; color:#94a3b8;">No orders in queue!</div>';
+
+            // Render Dispatch List
+            document.getElementById('dispatch-list').innerHTML = dispatch.map(o => `
+                <label class="dispatch-list-item">
+                    <div style="display:flex; align-items:center; gap:15px;">
+                        <input type="checkbox" class="dispatch-cb" value="${o.id}">
+                        <div>
+                            <div style="font-weight:bold;">Order #${o.order_number}</div>
+                            <div style="font-size:12px; color:#64748b;">${o.customer_name} • ${o.delivery_type.toUpperCase()} • ${o.delivery_address}</div>
+                        </div>
+                    </div>
+                </label>
+            `).join('') || '<div style="text-align:center; padding:40px; color:#94a3b8;">No orders staged for dispatch.</div>';
+        }
+
+        async function loadRiders() {
+            const { data } = await client.from('riders').select('*').eq('status', 'active');
+            document.getElementById('riderSelect').innerHTML = '<option value="">-- Select Rider --</option>' + 
+                (data || []).map(r => `<option value="${r.name}|${r.phone}">${r.name}</option>`).join('');
+        }
+
+        function openPacking(id) {
+            activePackOrderId = id;
+            const order = ordersData.find(o => o.id === id);
+            document.getElementById('packTitle').innerText = `Pack #${order.order_number}`;
+            document.getElementById('packDetails').innerText = `${order.kit_name} for ${order.customer_name}`;
+            document.querySelectorAll('.bom-check').forEach(cb => cb.checked = false);
+            document.getElementById('sealBtn').disabled = true;
+            document.getElementById('packingModal').style.display = 'flex';
+            
+            if(order.status === 'QUEUED_FOR_PACKING') {
+                client.from('orders').update({status: 'PACKING_IN_PROGRESS'}).eq('id', id).then();
+            }
+        }
+
+        function checkBom() {
+            const allChecked = Array.from(document.querySelectorAll('.bom-check')).every(cb => cb.checked);
+            document.getElementById('sealBtn').disabled = !allChecked;
+        }
+
+        async function sealOrder() {
+            await client.from('orders').update({status: 'STAGED_FOR_DISPATCH'}).eq('id', activePackOrderId);
+            await client.from('order_audit_logs').insert([{ order_id: activePackOrderId, old_status: 'PACKING_IN_PROGRESS', new_status: 'STAGED_FOR_DISPATCH', changed_by: currentUser.name, notes: 'Packed and Sealed' }]);
+            closeModal('packingModal');
+            loadData();
+        }
+
+        async function reportIssue() {
+            const reason = prompt("What item is missing?");
+            if(!reason) return;
+            await client.from('orders').update({status: 'ON_HOLD', delivery_notes: 'ISSUE: ' + reason}).eq('id', activePackOrderId);
+            await client.from('order_audit_logs').insert([{ order_id: activePackOrderId, old_status: 'PACKING_IN_PROGRESS', new_status: 'ON_HOLD', changed_by: currentUser.name, notes: 'Stock Issue: ' + reason }]);
+            alert("Sent to Admin!");
+            closeModal('packingModal');
+            loadData();
+        }
+
+        function toggleAllDispatch() {
+            const isChecked = document.getElementById('selectAll').checked;
+            document.querySelectorAll('.dispatch-cb').forEach(cb => cb.checked = isChecked);
+        }
+
+        async function batchDispatch() {
+            const riderVal = document.getElementById('riderSelect').value;
+            if(!riderVal) { alert("Please select a rider."); return; }
+            
+            const selectedIds = Array.from(document.querySelectorAll('.dispatch-cb:checked')).map(cb => cb.value);
+            if(selectedIds.length === 0) { alert("Select at least one order."); return; }
+
+            const [riderName, riderPhone] = riderVal.split('|');
+            const notificationsHtml = [];
+
+            for(let id of selectedIds) {
+                const order = ordersData.find(o => o.id === id);
+                const pin = Math.floor(1000 + Math.random() * 9000).toString();
+                
+                await client.from('orders').update({ status: 'IN_TRANSIT', delivery_pin: pin }).eq('id', id);
+                await client.from('order_audit_logs').insert([{ order_id: id, old_status: 'STAGED_FOR_DISPATCH', new_status: 'IN_TRANSIT', changed_by: currentUser.name, notes: `Assigned to ${riderName}` }]);
+
+                const msg = encodeURIComponent(`Hi ${order.customer_name}! 📦 Your Craft Atelier kit has been dispatched via ${riderName} (${riderPhone}).\n\n🔐 *Your Delivery PIN is: ${pin}*\nPlease provide this to the rider.`);
+                const waUrl = `https://wa.me/${order.customer_phone.replace(/^0/, '254')}?text=${msg}`;
+                
+                notificationsHtml.push(`
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #e2e8f0;">
+                        <div><b>#${order.order_number}</b> - ${order.customer_name}</div>
+                        <a href="${waUrl}" target="_blank" class="btn btn-green" style="width:auto; margin:0; text-decoration:none;">Notify Customer</a>
+                    </div>
+                `);
+            }
+
+            document.getElementById('notifyList').innerHTML = notificationsHtml.join('');
+            document.getElementById('notifyModal').style.display = 'flex';
+            document.getElementById('selectAll').checked = false;
+        }
+
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function logout() { client.auth.signOut(); window.location.href = 'login.html'; }
+        
+        window.onload = init;
+    </script>
+</body>
+</html>
+"""
+with open('ops-packing.html', 'w', encoding='utf-8') as f:
+    f.write(html_content)
+print("Ops Packing overhauled for Tabs, Grid, and Batching")
