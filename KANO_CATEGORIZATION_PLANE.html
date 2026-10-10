@@ -1,0 +1,75 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kano Categorization Plane</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f8f9fa; }
+        h1 { text-align: center; color: #333; }
+        #myDiv { width: 100%; height: 800px; background-color: white; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <h1>Kano Categorization Plane (With Standard Deviations)</h1>
+    <div id="myDiv"></div>
+    <script>
+        var trace1 = {
+            x: [4.75, 3.25, 3.25, 4.0, 2.75, 2.75, 4.0, 4.0, 4.0, 4.75, 3.5, 4.0, 3.5, 3.5, 3.5, 4.0, 4.25, 4.75],
+            y: [4.75, 4.0, 3.75, 3.75, 4.0, 3.75, 4.0, 4.0, 4.25, 4.5, 3.5, 3.75, 3.5, 3.5, 3.75, 4.0, 4.25, 4.5],
+            error_x: {
+                type: 'data',
+                array: [0.5, 0.5, 0.5, 0.816496580927726, 0.5, 0.5, 1.1547005383792515, 1.1547005383792515, 0.816496580927726, 0.5, 1.0, 1.1547005383792515, 1.0, 1.0, 1.0, 1.1547005383792515, 0.9574271077563381, 0.5],
+                visible: true,
+                color: 'rgba(200,0,0,0.4)',
+                thickness: 1
+            },
+            error_y: {
+                type: 'data',
+                array: [0.5, 0.816496580927726, 0.9574271077563381, 0.9574271077563381, 0.816496580927726, 0.9574271077563381, 1.1547005383792515, 1.1547005383792515, 0.9574271077563381, 0.5773502691896257, 1.0, 0.9574271077563381, 1.0, 1.0, 0.9574271077563381, 1.1547005383792515, 0.9574271077563381, 0.5773502691896257],
+                visible: true,
+                color: 'rgba(0,0,200,0.4)',
+                thickness: 1
+            },
+            mode: 'markers+text',
+            type: 'scatter',
+            name: 'Use Cases',
+            text: ["UC-01", "UC-02", "UC-03", "UC-04", "UC-05", "UC-06", "UC-07", "UC-08", "UC-09", "UC-10", "UC-11", "UC-12", "UC-13", "UC-14", "UC-15", "UC-16", "UC-17", "UC-18"],
+            textposition: 'top center',
+            marker: { size: 10, color: '#007BFF' }
+        };
+
+        var layout = {
+            title: 'Plot of Averages & Sample Standard Deviations (Error Bars)',
+            xaxis: {
+                title: 'Dysfunctional Average (X-Axis: Absence causes frustration)',
+                range: [1, 5.5],
+                dtick: 0.5
+            },
+            yaxis: {
+                title: 'Functional Average (Y-Axis: Presence causes satisfaction)',
+                range: [1, 5.5],
+                dtick: 0.5
+            },
+            shapes: [
+                // Attractive (Top-Left)
+                { type: 'rect', x0: 1, y0: 3.5, x1: 3.5, y1: 5.5, fillcolor: 'rgba(0, 255, 0, 0.1)', line: {width: 0} },
+                // One-Dimensional (Top-Right)
+                { type: 'rect', x0: 3.5, y0: 3.5, x1: 5.5, y1: 5.5, fillcolor: 'rgba(0, 0, 255, 0.1)', line: {width: 0} },
+                // Must-Be (Bottom-Right)
+                { type: 'rect', x0: 3.5, y0: 1, x1: 5.5, y1: 3.5, fillcolor: 'rgba(255, 0, 0, 0.1)', line: {width: 0} },
+                // Indifferent (Bottom-Left)
+                { type: 'rect', x0: 1, y0: 1, x1: 3.5, y1: 3.5, fillcolor: 'rgba(128, 128, 128, 0.1)', line: {width: 0} }
+            ],
+            annotations: [
+                { x: 2.25, y: 5.3, text: 'ATTRACTIVE', showarrow: false, font: {size: 20, color: 'green'} },
+                { x: 4.5, y: 5.3, text: 'ONE-DIMENSIONAL', showarrow: false, font: {size: 20, color: 'blue'} },
+                { x: 4.5, y: 1.2, text: 'MUST-BE', showarrow: false, font: {size: 20, color: 'red'} },
+                { x: 2.25, y: 1.2, text: 'INDIFFERENT', showarrow: false, font: {size: 20, color: 'gray'} }
+            ]
+        };
+
+        Plotly.newPlot('myDiv', [trace1], layout);
+    </script>
+</body>
+</html>

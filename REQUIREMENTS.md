@@ -36,3 +36,11 @@ This phase introduces software automation, strict access controls, and scaled ca
 * **Role-Based Access Control (RBAC)**:
   * **Operations Staff Dashboard**: Event buttons only, hidden financials, restricted to specific operational state transitions.
   * **Business Admin Dashboard**: Full revenue analytics, margin oversight, override capabilities, inventory management.
+
+
+### Phase 2: Innovation & Viral Engagement (The "Orthogonal" Features)
+* **REQ-INV-01 [Accessibility]:** The storefront MUST support a global "Left-Handed Mode" that visually mirrors video content and dynamically swaps directional text.
+* **REQ-INV-02 [Marketing]:** The system SHOULD include an HTML5 background camera capture utility to stitch crafting timelapses.
+* **REQ-INV-03 [Support]:** The tutorial interface MUST include a "Panic Button" routing to a synchronous video call with Ops.
+* **REQ-INV-04 [Retention]:** The system SHOULD utilize an AI Vision API to analyze failed project photos, generate comedic feedback, and issue retention discount codes.
+* **REQ-INV-05 [B2B Scaling]:** The Creator Portal MUST feature a visual drag-and-drop SKU builder that automatically writes new kit configurations (BOMs) to the Supabase database.
